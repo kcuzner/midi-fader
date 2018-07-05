@@ -28,4 +28,9 @@
   (pad "" np_thru_hole circle (at -31.4 -4.2) (size 3 3) (drill 1.7) (layers *.Cu *.Mask))
   (pad "" np_thru_hole circle (at 32.6 4.2) (size 3 3) (drill 1.7) (layers *.Cu *.Mask))
   (pad "" np_thru_hole circle (at -32.6 4.2) (size 3 3) (drill 1.7) (layers *.Cu *.Mask))
+  (model ${KIPRJMOD}/../cad/pta6043-2x15dp.wrl
+    (at (xyz 0 0 0.255))
+    (scale (xyz 0.3937 0.3937 0.3937))
+    (rotate (xyz -90 0 0))
+  )
 )
