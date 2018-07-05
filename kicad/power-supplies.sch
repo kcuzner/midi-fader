@@ -659,4 +659,14 @@ F 3 "" H 4500 2600 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 Connection ~ 4500 2700
+Text Label 3600 2700 0    60   ~ 0
+VDD_EN_SENSE
+Text Label 4550 4300 0    60   ~ 0
+VDD_EN_MR
+Text Label 5950 2800 0    60   ~ 0
+~VDD_SHDN
+Text Label 7850 2200 0    60   ~ 0
+VDD_L
+Text Label 2000 4000 0    60   ~ 0
+VDDA_EN
 $EndSCHEMATC
