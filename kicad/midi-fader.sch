@@ -32,6 +32,7 @@ LIBS:atmel
 LIBS:contrib
 LIBS:valves
 LIBS:midi-fader
+LIBS:midi-fader-cache
 EELAYER 25 0
 EELAYER END
 $Descr A4 11693 8268
