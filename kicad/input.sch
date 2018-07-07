@@ -1,0 +1,388 @@
+EESchema Schematic File Version 2
+LIBS:power
+LIBS:device
+LIBS:switches
+LIBS:relays
+LIBS:motors
+LIBS:transistors
+LIBS:conn
+LIBS:linear
+LIBS:regul
+LIBS:74xx
+LIBS:cmos4000
+LIBS:adc-dac
+LIBS:memory
+LIBS:xilinx
+LIBS:microcontrollers
+LIBS:dsp
+LIBS:microchip
+LIBS:analog_switches
+LIBS:motorola
+LIBS:texas
+LIBS:intel
+LIBS:audio
+LIBS:interface
+LIBS:digital-audio
+LIBS:philips
+LIBS:display
+LIBS:cypress
+LIBS:siliconi
+LIBS:opto
+LIBS:atmel
+LIBS:contrib
+LIBS:valves
+LIBS:midi-fader
+LIBS:midi-fader-cache
+EELAYER 25 0
+EELAYER END
+$Descr A4 11693 8268
+encoding utf-8
+Sheet 4 4
+Title ""
+Date ""
+Rev ""
+Comp ""
+Comment1 ""
+Comment2 ""
+Comment3 ""
+Comment4 ""
+$EndDescr
+$Comp
+L POT RV1
+U 1 1 5B406366
+P 5700 1300
+F 0 "RV1" V 5525 1300 50  0000 C CNN
+F 1 "10K" V 5600 1300 50  0000 C CNN
+F 2 "midi-fader:BOURNS_PTA60X3" H 5700 1300 50  0001 C CNN
+F 3 "" H 5700 1300 50  0001 C CNN
+F 4 "PTA6043-2015CPB103-ND" H 5700 1300 60  0001 C CNN "Part No."
+	1    5700 1300
+	-1   0    0    1   
+$EndComp
+$Comp
+L POT RV2
+U 1 1 5B40636E
+P 7700 1300
+F 0 "RV2" V 7525 1300 50  0000 C CNN
+F 1 "10K" V 7600 1300 50  0000 C CNN
+F 2 "midi-fader:BOURNS_PTA60X3" H 7700 1300 50  0001 C CNN
+F 3 "" H 7700 1300 50  0001 C CNN
+F 4 "PTA6043-2015CPB103-ND" H 7700 1300 60  0001 C CNN "Part No."
+	1    7700 1300
+	-1   0    0    1   
+$EndComp
+$Comp
+L Conn_02x08_Odd_Even J2
+U 1 1 5B406376
+P 4100 2800
+F 0 "J2" H 4150 3200 50  0000 C CNN
+F 1 "EXTERNAL_OUT" H 4150 2300 50  0000 C CNN
+F 2 "Pin_Headers:Pin_Header_Angled_2x08_Pitch2.54mm" H 4100 2800 50  0001 C CNN
+F 3 "" H 4100 2800 50  0001 C CNN
+F 4 "609-3346-ND" H 4100 2800 60  0001 C CNN "Part No."
+	1    4100 2800
+	1    0    0    -1  
+$EndComp
+$Comp
+L Conn_02x08_Odd_Even J3
+U 1 1 5B40637E
+P 6700 2800
+F 0 "J3" H 6750 3200 50  0000 C CNN
+F 1 "EXTERNAL_IN" H 6750 2300 50  0000 C CNN
+F 2 "Socket_Strips:Socket_Strip_Angled_2x08_Pitch2.54mm" H 6700 2800 50  0001 C CNN
+F 3 "" H 6700 2800 50  0001 C CNN
+F 4 "S5561-ND" H 6700 2800 60  0001 C CNN "Part No."
+	1    6700 2800
+	-1   0    0    -1  
+$EndComp
+$Comp
+L VDDA #PWR024
+U 1 1 5B406385
+P 5700 950
+F 0 "#PWR024" H 5700 800 50  0001 C CNN
+F 1 "VDDA" H 5700 1100 50  0000 C CNN
+F 2 "" H 5700 950 50  0001 C CNN
+F 3 "" H 5700 950 50  0001 C CNN
+	1    5700 950 
+	1    0    0    -1  
+$EndComp
+$Comp
+L VDDA #PWR025
+U 1 1 5B40638B
+P 7700 950
+F 0 "#PWR025" H 7700 800 50  0001 C CNN
+F 1 "VDDA" H 7700 1100 50  0000 C CNN
+F 2 "" H 7700 950 50  0001 C CNN
+F 3 "" H 7700 950 50  0001 C CNN
+	1    7700 950 
+	1    0    0    -1  
+$EndComp
+$Comp
+L GND #PWR026
+U 1 1 5B406391
+P 5700 1650
+F 0 "#PWR026" H 5700 1400 50  0001 C CNN
+F 1 "GND" H 5700 1500 50  0000 C CNN
+F 2 "" H 5700 1650 50  0001 C CNN
+F 3 "" H 5700 1650 50  0001 C CNN
+	1    5700 1650
+	1    0    0    -1  
+$EndComp
+$Comp
+L GND #PWR027
+U 1 1 5B406397
+P 7700 1650
+F 0 "#PWR027" H 7700 1400 50  0001 C CNN
+F 1 "GND" H 7700 1500 50  0000 C CNN
+F 2 "" H 7700 1650 50  0001 C CNN
+F 3 "" H 7700 1650 50  0001 C CNN
+	1    7700 1650
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	5700 950  5700 1150
+Wire Wire Line
+	7700 950  7700 1150
+Wire Wire Line
+	7700 1450 7700 1650
+Wire Wire Line
+	5700 1450 5700 1650
+Wire Wire Line
+	4600 1300 5550 1300
+Wire Wire Line
+	6800 1300 7550 1300
+NoConn ~ 6400 3100
+NoConn ~ 6900 3100
+Text Label 7100 2800 0    60   ~ 0
+IN0
+Text Label 6200 2800 2    60   ~ 0
+IN1
+Text Label 7100 2900 0    60   ~ 0
+IN2
+Text Label 6200 2900 2    60   ~ 0
+IN3
+Text Label 7100 3000 0    60   ~ 0
+IN4
+Text Label 6200 3000 2    60   ~ 0
+IN5
+Wire Wire Line
+	6900 2800 7100 2800
+Wire Wire Line
+	6900 2900 7100 2900
+Wire Wire Line
+	6900 3000 7100 3000
+Wire Wire Line
+	6400 2800 6200 2800
+Wire Wire Line
+	6200 2900 6400 2900
+Wire Wire Line
+	6400 3000 6200 3000
+Text Label 3700 2900 2    60   ~ 0
+IN0
+Text Label 3700 3000 2    60   ~ 0
+IN2
+Wire Wire Line
+	3900 2900 3700 2900
+Wire Wire Line
+	3900 3000 3700 3000
+Text Label 4600 2900 0    60   ~ 0
+IN1
+Text Label 4600 3000 0    60   ~ 0
+IN3
+Wire Wire Line
+	4400 2900 4600 2900
+Wire Wire Line
+	4600 3000 4400 3000
+Text Label 4600 2800 0    60   ~ 0
+FADER_B
+Wire Wire Line
+	4600 2800 4400 2800
+Text Label 3700 2800 2    60   ~ 0
+FADER_A
+Wire Wire Line
+	3700 2800 3900 2800
+$Comp
+L GND #PWR028
+U 1 1 5B4063BF
+P 4500 3300
+F 0 "#PWR028" H 4500 3050 50  0001 C CNN
+F 1 "GND" H 4500 3150 50  0000 C CNN
+F 2 "" H 4500 3300 50  0001 C CNN
+F 3 "" H 4500 3300 50  0001 C CNN
+	1    4500 3300
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	4500 3300 4500 3200
+Wire Wire Line
+	4500 3200 4400 3200
+$Comp
+L GND #PWR029
+U 1 1 5B4063C7
+P 6300 3300
+F 0 "#PWR029" H 6300 3050 50  0001 C CNN
+F 1 "GND" H 6300 3150 50  0000 C CNN
+F 2 "" H 6300 3300 50  0001 C CNN
+F 3 "" H 6300 3300 50  0001 C CNN
+	1    6300 3300
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	6300 3300 6300 3200
+Wire Wire Line
+	6300 3200 6400 3200
+$Comp
+L VDDA #PWR030
+U 1 1 5B4063CF
+P 3450 3100
+F 0 "#PWR030" H 3450 2950 50  0001 C CNN
+F 1 "VDDA" H 3450 3250 50  0000 C CNN
+F 2 "" H 3450 3100 50  0001 C CNN
+F 3 "" H 3450 3100 50  0001 C CNN
+	1    3450 3100
+	1    0    0    -1  
+$EndComp
+$Comp
+L VDDA #PWR031
+U 1 1 5B4063D5
+P 7400 3100
+F 0 "#PWR031" H 7400 2950 50  0001 C CNN
+F 1 "VDDA" H 7400 3250 50  0000 C CNN
+F 2 "" H 7400 3100 50  0001 C CNN
+F 3 "" H 7400 3100 50  0001 C CNN
+	1    7400 3100
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	6900 2500 7000 2500
+Wire Wire Line
+	7000 2500 7000 2400
+Wire Wire Line
+	3800 2400 3800 2500
+Wire Wire Line
+	3800 2500 3900 2500
+$Comp
+L VDD #PWR032
+U 1 1 5B4063DF
+P 3800 2400
+F 0 "#PWR032" H 3800 2250 50  0001 C CNN
+F 1 "VDD" H 3800 2550 50  0000 C CNN
+F 2 "" H 3800 2400 50  0001 C CNN
+F 3 "" H 3800 2400 50  0001 C CNN
+	1    3800 2400
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	3450 3100 3450 3200
+Wire Wire Line
+	3450 3200 3900 3200
+$Comp
+L VDD #PWR033
+U 1 1 5B4063E7
+P 7000 2400
+F 0 "#PWR033" H 7000 2250 50  0001 C CNN
+F 1 "VDD" H 7000 2550 50  0000 C CNN
+F 2 "" H 7000 2400 50  0001 C CNN
+F 3 "" H 7000 2400 50  0001 C CNN
+	1    7000 2400
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	7400 3100 7400 3200
+Wire Wire Line
+	7400 3200 6900 3200
+$Comp
+L GND #PWR034
+U 1 1 5B4063EF
+P 5100 2600
+F 0 "#PWR034" H 5100 2350 50  0001 C CNN
+F 1 "GND" H 5100 2450 50  0000 C CNN
+F 2 "" H 5100 2600 50  0001 C CNN
+F 3 "" H 5100 2600 50  0001 C CNN
+	1    5100 2600
+	1    0    0    -1  
+$EndComp
+$Comp
+L GND #PWR035
+U 1 1 5B4063F5
+P 5900 2600
+F 0 "#PWR035" H 5900 2350 50  0001 C CNN
+F 1 "GND" H 5900 2450 50  0000 C CNN
+F 2 "" H 5900 2600 50  0001 C CNN
+F 3 "" H 5900 2600 50  0001 C CNN
+	1    5900 2600
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	5900 2600 5900 2500
+Wire Wire Line
+	5900 2500 6400 2500
+Wire Wire Line
+	5100 2600 5100 2500
+Wire Wire Line
+	5100 2500 4400 2500
+NoConn ~ 3900 2600
+NoConn ~ 3900 2700
+NoConn ~ 4400 2600
+NoConn ~ 4400 2700
+NoConn ~ 6400 2600
+NoConn ~ 6400 2700
+NoConn ~ 6900 2600
+NoConn ~ 6900 2700
+Text Notes 7050 2650 0    60   ~ 0
+Future feature: Shift register!
+NoConn ~ 4400 3100
+NoConn ~ 3900 3100
+Text HLabel 1300 1500 0    60   Input ~ 0
+IN[0..5]
+Wire Bus Line
+	1300 1500 1500 1500
+Text Label 1800 1700 0    60   ~ 0
+IN0
+Text Label 1800 1800 0    60   ~ 0
+IN1
+Text Label 1800 1900 0    60   ~ 0
+IN2
+Text Label 1800 2000 0    60   ~ 0
+IN3
+Text Label 1800 2100 0    60   ~ 0
+IN4
+Text Label 1800 2200 0    60   ~ 0
+IN5
+Entry Wire Line
+	1500 1600 1600 1700
+Entry Wire Line
+	1500 1700 1600 1800
+Entry Wire Line
+	1500 1800 1600 1900
+Entry Wire Line
+	1500 1900 1600 2000
+Entry Wire Line
+	1500 2000 1600 2100
+Entry Wire Line
+	1500 2100 1600 2200
+Wire Wire Line
+	1600 1700 1800 1700
+Wire Wire Line
+	1600 1800 1800 1800
+Wire Wire Line
+	1600 1900 1800 1900
+Wire Wire Line
+	1600 2000 1800 2000
+Wire Wire Line
+	1600 2100 1800 2100
+Wire Wire Line
+	1600 2200 1800 2200
+Wire Bus Line
+	1500 1500 1500 2100
+Text Label 5400 1300 2    60   ~ 0
+FADER_A
+Text Label 7500 1300 2    60   ~ 0
+FADER_B
+Text Label 1350 1500 0    60   ~ 0
+IN[0..5]
+Text HLabel 4600 1300 0    60   Input ~ 0
+FADER_A
+Text HLabel 6800 1300 0    60   Input ~ 0
+FADER_B
+$EndSCHEMATC

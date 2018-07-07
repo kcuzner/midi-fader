@@ -1,5 +1,9 @@
 EESchema-DOCLIB  Version 2.0
 #
+$CMP 74AHC594
+D 74HC594 Serial to Parallel Shift Register w/o OE
+$ENDCMP
+#
 $CMP MCP1603
 D MCP1603 3.3V 500mA Synchronous Buck TSOT-23
 $ENDCMP
