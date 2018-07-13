@@ -976,4 +976,10 @@ Text Label 1250 2700 0    60   ~ 0
 LCLK
 Text Label 1250 2800 0    60   ~ 0
 ~OE
+NoConn ~ 2900 3200
+NoConn ~ 2900 3300
+NoConn ~ 4500 2300
+NoConn ~ 4500 2400
+NoConn ~ 4500 2500
+NoConn ~ 4500 3000
 $EndSCHEMATC
