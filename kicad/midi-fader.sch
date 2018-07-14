@@ -38,10 +38,10 @@ EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
 Sheet 1 4
-Title ""
-Date ""
-Rev ""
-Comp ""
+Title "USB Midi-Fader"
+Date "2018-07-13"
+Rev "A"
+Comp "Kevin Cuzner"
 Comment1 ""
 Comment2 ""
 Comment3 ""

@@ -13,6 +13,13 @@
   )
 
   (page A4)
+  (title_block
+    (title "USB Midi-Fader")
+    (date 2018-07-13)
+    (rev A)
+    (company "Kevin Cuzner")
+  )
+
   (layers
     (0 F.Cu signal)
     (31 B.Cu signal)
