@@ -395,7 +395,7 @@ $EndComp
 Text Label 2850 6700 0    60   ~ 0
 LED_REXT
 Text Label 2750 4400 2    60   ~ 0
-LCLK
+LCLK_LCL
 Text Label 2650 6000 2    60   ~ 0
 ~LED_OE
 Wire Wire Line
@@ -505,8 +505,6 @@ Wire Wire Line
 Wire Wire Line
 	2800 6700 2800 6800
 Wire Wire Line
-	1200 4400 3400 4400
-Wire Wire Line
 	3400 6100 3200 6100
 Wire Wire Line
 	3200 6100 3200 4400
@@ -514,14 +512,12 @@ Connection ~ 3200 4400
 Wire Wire Line
 	1200 6000 3400 6000
 Wire Wire Line
-	1200 4800 3400 4800
-Wire Wire Line
 	3400 6500 3100 6500
 Wire Wire Line
 	3100 6500 3100 4800
 Connection ~ 3100 4800
 Text Label 2200 4800 0    60   ~ 0
-SCLK
+SCLK_LCL
 $Comp
 L R R40
 U 1 1 5B413854
@@ -690,6 +686,7 @@ F 0 "C26" H 2625 3850 50  0000 L CNN
 F 1 "0.1u" H 2625 3650 50  0000 L CNN
 F 2 "Capacitors_SMD:C_0402" H 2638 3600 50  0001 C CNN
 F 3 "" H 2600 3750 50  0001 C CNN
+F 4 "1276-1043-1-ND" H 2600 3750 60  0001 C CNN "Part No."
 	1    2600 3750
 	1    0    0    -1  
 $EndComp
@@ -713,6 +710,7 @@ F 0 "C24" H 2225 3850 50  0000 L CNN
 F 1 "1u" H 2225 3650 50  0000 L CNN
 F 2 "Capacitors_SMD:C_0603" H 2238 3600 50  0001 C CNN
 F 3 "" H 2200 3750 50  0001 C CNN
+F 4 "1276-1182-1-ND" H 2200 3750 60  0001 C CNN "Part No."
 	1    2200 3750
 	1    0    0    -1  
 $EndComp
@@ -759,19 +757,19 @@ Wire Wire Line
 	2600 4000 2600 3900
 Connection ~ 2400 4000
 Text Label 5000 3100 0    60   ~ 0
-SCLK
+SCLK_LCL
 Wire Wire Line
 	4600 3100 4400 3100
 Text Label 6200 3100 2    60   ~ 0
-SCLK
+SCLK_LCL
 Wire Wire Line
 	6200 3100 6400 3100
 Text Label 3200 3300 2    60   ~ 0
-LCLK
+LCLK_LCL
 Wire Wire Line
 	3700 3100 3900 3100
 Text Label 7100 3100 0    60   ~ 0
-LCLK
+LCLK_LCL
 Wire Wire Line
 	6900 3100 7100 3100
 Wire Wire Line
@@ -1139,4 +1137,34 @@ Text Label 7100 2700 0    60   ~ 0
 ~LED_OE
 Wire Wire Line
 	7100 2700 6900 2700
+$Comp
+L R R48
+U 1 1 5B494DB5
+P 1500 4800
+F 0 "R48" V 1580 4800 50  0000 C CNN
+F 1 "0" V 1500 4800 50  0000 C CNN
+F 2 "Resistors_SMD:R_0402" V 1430 4800 50  0001 C CNN
+F 3 "" H 1500 4800 50  0001 C CNN
+	1    1500 4800
+	0    -1   -1   0   
+$EndComp
+$Comp
+L R R47
+U 1 1 5B494F5F
+P 1500 4400
+F 0 "R47" V 1580 4400 50  0000 C CNN
+F 1 "0" V 1500 4400 50  0000 C CNN
+F 2 "Resistors_SMD:R_0402" V 1430 4400 50  0001 C CNN
+F 3 "" H 1500 4400 50  0001 C CNN
+	1    1500 4400
+	0    1    1    0   
+$EndComp
+Wire Wire Line
+	1200 4400 1350 4400
+Wire Wire Line
+	1200 4800 1350 4800
+Wire Wire Line
+	1650 4400 3400 4400
+Wire Wire Line
+	1650 4800 3400 4800
 $EndSCHEMATC
