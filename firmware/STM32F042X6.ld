@@ -57,7 +57,7 @@ MEMORY
  */
 _heap_size_min = 256;
 _stack_size_min = 512; /* On a system with 64K, 8K was used */
-_estack = (0x20000000+8K);
+_estack = (0x20000000+6K);
 
 SECTIONS
 {
