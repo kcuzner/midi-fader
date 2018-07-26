@@ -56,7 +56,7 @@ RM = rm -rf
 
 OBJ := $(addprefix $(OBJDIR)/,$(notdir $(SRC:.c=.o)))
 OBJ += $(addprefix $(OBJDIR)/,$(notdir $(ASM:.s=.o)))
-
+DEP := $(addprefix $(OBJDIR)/,$(notdir $(SRC:.c=.d)))
 
 all:: $(BINDIR)/$(PROJECT).bin $(BINDIR)/$(PROJECT).hex
 
@@ -114,7 +114,7 @@ $(BINDIR)/$(PROJECT).elf: $(OBJ) $(LSCRIPT)
 define build_compile_rules
 $$(OBJDIR)/%.o: $1/%.c Makefile
 	@mkdir -p $$(dir $$@)
-	$$(CC) $$(GCFLAGS) -c $$< -o $$@
+	$$(CC) $$(GCFLAGS) -MMD -c $$< -o $$@
 	
 $$(OBJDIR)/%.o: $1/%.s Makefile
 	@mkdir -p $$(dir $$@)
@@ -123,4 +123,6 @@ endef
 
 # Generate rules for each source directory
 $(foreach DIR,$(SRCDIRS),$(eval $(call build_compile_rules,$(DIR))))
+
+-include $(DEP)
 
