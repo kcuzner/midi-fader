@@ -28,7 +28,7 @@ void usb_hid_receive(const USBTransferData *report)
  * Implementation of hook_usb_handle_setup_request which implements HID class
  * requests
  */
-USBControlResult hook_usb_handle_setup_request(USBSetupPacket const *setup, USBTransferData *nextTransfer)
+static USBAppControlResult hid_usb_handle_setup_request(USBSetupPacket const *setup, USBTransferData *nextTransfer)
 {
     switch (setup->wRequestAndType)
     {
@@ -40,10 +40,10 @@ USBControlResult hook_usb_handle_setup_request(USBSetupPacket const *setup, USBT
         case USB_REQ(0x0A, USB_REQ_DIR_OUT | USB_REQ_TYPE_CLS | USB_REQ_RCP_IFACE):
             return USB_CTL_OK;
     }
-    return USB_CTL_STALL;
+    return USB_APP_CTL_UNHANDLED;
 }
 
-void hook_usb_set_configuration(uint16_t configuration)
+static void hid_usb_set_configuration(uint16_t configuration)
 {
     usb_endpoint_setup(HID_IN_ENDPOINT, 0x81, USB_HID_ENDPOINT_SIZE, USB_ENDPOINT_INTERRUPT, USB_FLAGS_NOZLP);
     usb_endpoint_setup(HID_OUT_ENDPOINT, 0x02, USB_HID_ENDPOINT_SIZE, USB_ENDPOINT_INTERRUPT, USB_FLAGS_NOZLP);
@@ -51,7 +51,7 @@ void hook_usb_set_configuration(uint16_t configuration)
     hook_usb_hid_configured();
 }
 
-void hook_usb_endpoint_sent(uint8_t endpoint, void *buf, uint16_t len)
+static void hid_usb_endpoint_sent(uint8_t endpoint, void *buf, uint16_t len)
 {
     USBTransferData report = { buf, len };
     if (endpoint == HID_IN_ENDPOINT)
@@ -60,7 +60,7 @@ void hook_usb_endpoint_sent(uint8_t endpoint, void *buf, uint16_t len)
     }
 }
 
-void hook_usb_endpoint_received(uint8_t endpoint, void *buf, uint16_t len)
+static void hid_usb_endpoint_received(uint8_t endpoint, void *buf, uint16_t len)
 {
     USBTransferData report = { buf, len };
     if (endpoint == HID_OUT_ENDPOINT)
@@ -68,4 +68,11 @@ void hook_usb_endpoint_received(uint8_t endpoint, void *buf, uint16_t len)
         hook_usb_hid_out_report_received(&report);
     }
 }
+
+const USBInterface hid_interface = {
+    .hook_usb_handle_setup_request = &hid_usb_handle_setup_request,
+    .hook_usb_set_configuration = &hid_usb_set_configuration,
+    .hook_usb_endpoint_sent = &hid_usb_endpoint_sent,
+    .hook_usb_endpoint_received = &hid_usb_endpoint_received,
+};
 

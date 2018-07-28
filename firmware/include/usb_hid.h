@@ -10,6 +10,7 @@
 #define _USB_HID_H_
 
 #include "usb.h"
+#include "usb_app.h"
 #include "macro_helpers.h"
 
 #define USB_HID_ENDPOINT_SIZE 64
@@ -62,6 +63,11 @@ void hook_usb_hid_in_report_sent(const USBTransferData *report);
  * report: Report received
  */
 void hook_usb_hid_out_report_received(const USBTransferData *report);
+
+/**
+ * USB interface object for the app
+ */
+extern const USBInterface hid_interface;
 
 
 /**

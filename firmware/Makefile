@@ -69,14 +69,14 @@ gdb: $(BINDIR)/$(PROJECT).elf $(BINDIR)/openocd.pid
 	$(GDB) -ex "target remote localhost:3333" $(BINDIR)/$(PROJECT).elf
 
 stop:
-	echo shutdown | nc localhost 4444
+	-echo shutdown | nc localhost 4444
 
 macros:
 	$(CC) $(GCFLAGS) -dM -E - < /dev/null
 
 cleanBuild: clean
 
-clean:
+clean: stop
 	$(RM) $(BINDIR)
 	$(RM) $(OBJDIR)
 
@@ -115,7 +115,6 @@ define build_compile_rules
 $$(OBJDIR)/%.o: $1/%.c Makefile
 	@mkdir -p $$(dir $$@)
 	$$(CC) $$(GCFLAGS) -MMD -c $$< -o $$@
-	
 $$(OBJDIR)/%.o: $1/%.s Makefile
 	@mkdir -p $$(dir $$@)
 	$$(AS) $$(ASFLAGS) -o $$@ $$<
