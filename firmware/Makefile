@@ -13,17 +13,19 @@ PROJECT = midi-fader
 SRCDIRS = src cmsis/src
 BINDIR = bin
 OBJDIR = obj
+GENDIR = obj/gen
 INCDIRS = include cmsis/include
 
 # Project target
 CPU = cortex-m0
 
 # Sources
+GENERATE = USB_DESCRIPTOR
 SRC = $(foreach DIR,$(SRCDIRS),$(wildcard $(DIR)/*.c))
 ASM = $(foreach DIR,$(SRCDIRS),$(wildcard $(DIR)/*.s))
 
 # Include directories
-INCLUDE  = $(foreach DIR,$(INCDIRS),-I$(DIR))
+INCLUDE  = $(foreach DIR,$(INCDIRS),-I$(DIR)) -I$(GENDIR)
 
 # Linker
 LSCRIPT = STM32F042X6.ld
@@ -54,8 +56,16 @@ RM = rm -rf
 # Build process
 #
 
+GENERATE_USB_DESCRIPTOR=USB_DESCRIPTOR
+GENERATE_USB_DESCRIPTOR_SRC=_gen_usb_desc.c
+GENERATE_USB_DESCRIPTOR_HDR=_gen_usb_desc.h
+
 OBJ := $(addprefix $(OBJDIR)/,$(notdir $(SRC:.c=.o)))
 OBJ += $(addprefix $(OBJDIR)/,$(notdir $(ASM:.s=.o)))
+ifneq ($(filter $(GENERATE), $(GENERATE_USB_DESCRIPTOR)),)
+	GEN_OBJ += $(OBJDIR)/$(GENERATE_USB_DESCRIPTOR_SRC:.c=.o)
+endif
+ALL_OBJ := $(OBJ) $(GEN_OBJ)
 DEP := $(addprefix $(OBJDIR)/,$(notdir $(SRC:.c=.d)))
 
 all:: $(BINDIR)/$(PROJECT).bin $(BINDIR)/$(PROJECT).hex
@@ -99,7 +109,7 @@ $(BINDIR)/$(PROJECT).hex: $(BINDIR)/$(PROJECT).elf
 $(BINDIR)/$(PROJECT).bin: $(BINDIR)/$(PROJECT).elf
 	$(OBJCOPY) -O binary $(BINDIR)/$(PROJECT).elf $(BINDIR)/$(PROJECT).bin
 
-$(BINDIR)/$(PROJECT).elf: $(OBJ) $(LSCRIPT)
+$(BINDIR)/$(PROJECT).elf: $(ALL_OBJ) $(LSCRIPT)
 	@mkdir -p $(dir $@)
 	$(CC) $(OBJ) $(LDFLAGS) -o $(BINDIR)/$(PROJECT).elf
 	$(OBJDUMP) -D $(BINDIR)/$(PROJECT).elf > $(BINDIR)/$(PROJECT).lst
@@ -122,6 +132,20 @@ endef
 
 # Generate rules for each source directory
 $(foreach DIR,$(SRCDIRS),$(eval $(call build_compile_rules,$(DIR))))
+
+# Ensure generated objects get run first
+$(OBJ): $(GEN_OBJ)
+
+# Rule for generated C files
+$(OBJDIR)/%.o: $(GENDIR)/%.c Makefile
+	@mkdir -p $(dir $@)
+	$(CC) $(GCFLAGS) -MMD -c $< -o $@
+
+# Generated USB descriptor source
+$(GENDIR)/$(GENERATE_USB_DESCRIPTOR_SRC): $(SRC) Makefile
+	@mkdir -p $(dir $@)
+	touch $@
+	touch $(GENDIR)/$(GENERATE_USB_DESCRIPTOR_HDR)
 
 -include $(DEP)
 
