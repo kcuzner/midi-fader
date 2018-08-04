@@ -16,7 +16,7 @@ line.
 
 """
 
-import argparse, textwrap, logging, os, inspect
+import argparse, textwrap, logging, os, inspect, traceback
 from collections import namedtuple, OrderedDict
 import xml.etree.ElementTree as ET
 
@@ -25,232 +25,77 @@ import xml.etree.ElementTree as ET
 ###############################################################################
 
 DescriptorTag = namedtuple('DescriptorTag', ['tag'])
-DescriptorType = namedtuple('DescriptorType', ['type'])
 NestedType = namedtuple('NestedType', ['type'])
 
-class DescriptorItem(object):
+def handles_tag(tag):
     """
-    Base class for descriptor items.
-
-    This handles the translation of the data in the descriptor into C source
-    code or C header variables
-    """
-    def __init__(self, name, length):
-        self.name = name
-        self.length = length
-    def to_source(self, descriptor, all_descriptors):
-        """
-        Called when this descriptor item needs to be translated to C source
-        """
-        return "// {}".format(self.name)
-
-class DescriptorItemDefinition(object):
-    """
-    Base class for descriptor item definitions
-
-    When the item definition is called, it should produce an appropriate
-    descriptor item.
-    """
-    def __init__(self, name):
-        self.name = name
-    def __call__(self, element):
-        return DescriptorItem(self.name, 0)
-
-class DynamicItem(DescriptorItem):
-    """
-    Item whose numerical value is determined when transformed into source
-
-    It must have a constant length
-    """
-    def __init__(self, name, value_fn, length):
-        super().__init__(name, length)
-        if length < 1 or length > 4:
-            raise ValueError("The {} supports values only between 1 and 4 bytes in length".format(type(self)))
-        self.value_fn = value_fn
-        self.length = length
-    def to_source(self, descriptor, all_descriptors):
-        value = self.value_fn(descriptor, add_descriptors)
-        source = ['(({} >> {}) & 0xFF),'.format(self.value, n) for n in range(0, self.length)]
-        return ' '.join(source) + ' ' + super().to_souce(descriptor, all_descriptors)
-
-class ConstantItem(DynamicItem):
-    """
-    Item that is a constant derived directly from the XML element
-    """
-    def __init__(self, name, value, length):
-        super().__init__(name, lambda d, ad: value, length)
-
-class ByteItemDefinition(DescriptorItemDefinition):
-    """
-    Item that takes up exactly one byte and is derived directly from the XML
-    element or has a provided value
-    """
-    def __init__(self, attribute, value=None):
-        super().__init__(attribute)
-        self.value = value
-    def __call__(self, element):
-        value = self.value if self.value is not None else element.attrib[self.name]
-        return ConstantItem(self.name, value, 1)
-
-class WordItemDefinition(DescriptorItemDefinition):
-    """
-    Item that takes up exactly two bytes and is derived directly from the XML
-    element
-    """
-    def __init__(self, attribute, value=None):
-        super().__init__(attribute)
-        self.value = value
-    def __call__(self, element):
-        value = self.value if self.value is not None else element.attrib[self.name]
-        return ConstantItem(self.name, value, 2)
-
-class DescriptorTypeDefinition(DescriptorItemDefinition):
-    """
-    Item which produces a byte with the descriptor type for the current descriptor
-    """
-    def __init__(self, name='bDescriptorType'):
-        super().__init__(name)
-    def __call__(self, element):
-        return DynamicItem(self.name, lambda d, ad: d.descriptor_type, 1)
-
-class LengthItem(DescriptorItem):
-    """
-    Item that contains the total length of the descriptor in a single byte
-    """
-    def __init__(self, name):
-        super().__init__(name, 1)
-    def to_source(self, descriptor, all_descriptors):
-        value = sum([i.length for i in descriptor.items])
-        return '{}, '.format(value) + super().to_source(descriptor, all_descriptors)
-
-class LengthItemDefinition(DescriptorItemDefinition):
-    """
-    Provides the total length of a descriptor
-    """
-    def __init__(self):
-        super().__init__('bLength')
-    def __call__(self, element):
-        return LengthItem(self.name)
-
-class TextItem(DescriptorItem):
-    """
-    Item that encodes text as UTF-16LE
-    """
-    def __init__(self, name, string):
-        self.raw = string.encode('utf_16_le')
-        super().__init__(name, len(self.raw))
-    def to_source(self, descriptor, all_descriptors):
-        chunks = list(['{}, 0x{:02X},'.format("'{}'".format(chr(self.raw[i])) if self.raw[i+1] == 0 else hex(self.raw[i]), self.raw[i+1])
-                for i in range(0, len(self.raw), 2)])
-        chunks[0] += ' ' + super().to_source(descriptor, all_descriptors)
-        return os.linesep.join(chunks)
-
-class TextItemDefinition(DescriptorItemDefinition):
-    """
-    Provides an item that encodes text as UTF-16LE
-    """
-    def __init__(self, name, value=None):
-        super().__init__(name)
-        self.value = value
-    def __call__(self, element):
-        value = self.value if self.value is not None else element.text
-        return TextItem(self.name, value)
-
-###############################################################################
-# Descriptors
-###############################################################################
-
-class OrderedClassMembers(type):
-    """
-    Metaclass which provides an __ordered__ class-level attribute which
-    contains the attributes in declaration order
-    """
-    @classmethod
-    def __prepare__(cls, name, bases):
-        return OrderedDict()
-
-    def __new__(self, name, bases, classdict):
-        classdict['__ordered__'] = [key for key in classdict.keys()
-                if key not in ('__module__', '__qualname__')]
-        return type.__new__(self, name, bases, classdict)
-
-def descriptor_type(typenum):
-    """
-    Attaches a descriptor type to a class
+    Attaches a tag to a class for parsing purposes
     """
     def decorator(cls):
         if not inspect.isclass(cls):
-            raise ValueError("The @descriptor_type decorator is only valid for classes")
-        for name in dir(cls):
-            attr = getattr(cls, name)
-            if isinstance(attr, DescriptorType):
-                raise ValueError("The decorated class already has a DescriptorType")
-        cls.__descriptor_type = DescriptorType(typenum)
-        return cls
-    return decorator
-
-def descriptor_tag(elname):
-    """
-    Attaches an element tag name to a class
-    """
-    def decorator(cls):
-        if not inspect.isclass(cls):
-            raise ValueError("The @descriptor_element decorator is only valid for classes")
-        attrname_format = '__descriptor_element{}'
+            raise ValueError("The @handles_tag decorator is only valid for classes")
+        attrname_format = '__tagname{}'
         index = 0
         while hasattr(cls, attrname_format.format(index)):
             index += 1
-        setattr(cls, attrname_format.format(index), DescriptorTag(elname))
+        setattr(cls, attrname_format.format(index), DescriptorTag(tag))
         return cls
     return decorator
 
-def child_of(descriptor_cls):
+def child_of(tag_cls):
     """
-    Declares that this is a child of the passed descriptor class
+    Declares that this is a child of the passed tag handler class
     """
     def decorator(cls):
         if not inspect.isclass(cls):
             raise ValueError("The @child_of decorator is only valid for classes")
-        attrname_format = '__child_type{}'
+        attrname_format = '__child_tag{}'
         index = 0
-        while hasattr(descriptor_cls, attrname_format.format(index)):
+        while hasattr(tag_cls, attrname_format.format(index)):
             index += 1
-        setattr(cls, attrname_format.format(index), NestedType(cls))
+        setattr(tag_cls, attrname_format.format(index), NestedType(cls))
         return cls
+    return decorator
 
-class Descriptor(metaclass=OrderedClassMembers):
+class TagHandler(object):
     """
-    Base descriptor class, does not do anything other than feed down into its
-    subclasses.
-
-    Descriptors are matched against element tags by DescriptorTag instances on
-    the class level. A Descriptor can have any number of tags, though most
-    descriptors should really only have one.
+    Base object which handles a tag and nested tags
     """
-    logger = logging.getLogger('descriptor')
-    def parse_descriptor_el(el):
-        """
-        Parses a descriptor element using a subtype of this type
-
-        Returns a generator
-        """
-        no_match = True
-        for c in Descriptor.__subclasses__():
+    logger = logging.getLogger('TagHandler')
+    def parse(el, parent=None):
+        TagHandler.logger.info("visiting {}".format(el))
+        handled = False
+        for c in TagHandler.subclasses():
             if c.match_tag(el):
-                descriptor = c(el)
-                yield descriptor
-                for d in [Descriptor.parse_descriptor_el(e) for e in el]:
-                    if not descriptor.is_child(d):
-                        Descriptor.logger.warn('{} is not a valid child of {}, pushed to global scope'.format(d, descriptor))
-                        yield d
-                    else:
-                        descriptor.add_child(d)
+                handled = True
+                yield c(el, parent)
+        if not handled:
+            TagHandler.logger.warn('Element {} was not handled'.format(el))
+
+    def __init__(self, el, parent=None):
+        if not type(self).match_tag(el):
+            raise ValueError('Type {} cannot handle {}'.format(type(self), el))
+        # all tags may have an ID
+        self.id = el.attrib['id'] if 'id' in el.attrib else None
+        self.children = []
+        for e in el:
+            if self.match_child(e):
+                self.children.extend(TagHandler.parse(e, self))
+            else:
+                raise ValueError('{}: Unexpected child {}'.format(el, e))
+
+    @classmethod
+    def subclasses(cls):
+        all_cls = []
+        for c in cls.__subclasses__():
+            all_cls.append(c)
+            all_cls.extend(c.subclasses())
+        return all_cls
 
     @classmethod
     def match_tag(cls, el):
         """
-        Returns whether or not this descriptor matches the passed element's
-        tag.
+        Returns whether or not this handler can handle the passed tag
         """
         for attr_name in dir(cls):
             attr = getattr(cls, attr_name)
@@ -258,72 +103,222 @@ class Descriptor(metaclass=OrderedClassMembers):
                 return True
         return False
 
-    def __init__(self, el):
-        self.__items = []
-        self.__children = []
-        for i in self.__ordered__:
-            attr = getattr(self, i)
-            if isinstance(attr, DescriptorItemDefinition):
-                self.__items.append(attr(el))
-
-    @property
-    def descriptor_type(self):
-        for attr_name in dir(self):
-            if attr_name == 'descriptor_type':
-                continue
-            attr = getattr(self, attr_name)
-            if isinstance(attr, DescriptorType):
-                return attr.type
-        raise ValueError("Descriptor {} does not have a type".format(self))
-
-    @property
-    def items(self):
-        return self.__items
-
-    def is_child(self, descriptor):
+    @classmethod
+    def match_child(cls, el):
         """
-        Returns whether or not the passed descriptor could be a child of this
-        descriptor
+        Returns whether or not the passed element is a valid child of the
+        passed tag handler
         """
-        # should this be a classmethod instead? I only call it from an instance
-        # but the data truly lives on the class level...
         for attr_name in dir(cls):
             attr = getattr(cls, attr_name)
-            if isinstance(attr, NestedType) and isinstance(descriptor, attr.type):
+            if isinstance(attr, NestedType) and attr.type.match_tag(el):
                 return True
         return False
 
-    def add_child(self, descriptor):
-        if not self.is_child(descriptor):
-            raise ValueError('{} is not a valid child of {}'.format(descriptor, self))
-        self.__children.append(descriptor)
+@handles_tag('descriptor')
+class Descriptor(TagHandler):
+    """
+    Descriptor class. This represents the bare minimum required of a USB
+    descriptor. By itself, no content is created.
+    """
+    def __init__(self, el, parent=None):
+        if parent is not None:
+            raise ValueError('A descriptor may not be the child of any element')
+        self.type = int(el.attrib['type'], 0)
+        super().__init__(el, parent)
+    def to_source(self):
+        return os.linesep.join([c.to_source() for c in self.children if hasattr(c, 'to_source')])
 
-    def to_source(self, all_descriptors):
+class BinaryContent(TagHandler):
+    """
+    Base binary content, generally not useful since by default it outputs
+    nothing other than a comment which contins a name
+    """
+    def __init__(self, el, parent=None):
+        self.name = el.attrib['name']
+        super().__init__(el, parent)
+    def __iter__(self):
         """
-        Generates a source code fragment for this descriptor
+        Returns an iterator for this binary content. Each item should be
+        a single uint8 (or a comma-separated list of uint8s) so that the
+        generated source compiles, but it may be a string or whatever is needed
         """
-        return os.linesep.join([d.to_source(self, all_descriptors) for d in self.items])
+        raise NotImplementedError
+        yield
+    def __len__(self):
+        """
+        Returns the length of this binary content in bytes. This does not need
+        to correspond to the length of the sequence in __iter__
+        """
+        raise NotImplementedError
+    def to_source(self):
+        source = ['{},'.format(b) for b in self]
+        return os.linesep.join(source)
 
-@descriptor_tag('device')
-@descriptor_type(0x01)
-class DeviceDescriptor(Descriptor):
-    bLength = LengthItemDefinition()
-    bDescriptorType = DescriptorTypeDefinition()
-    bcdUSB = WordItemDefinition('bcdUSB')
-    bDeviceClass = ByteItemDefinition('bDeviceClass')
-    bDeviceSubClass = ByteItemDefinition('bDeviceSubClass')
-    bDeviceProtocol = ByteItemDefinition('bDeviceProtocol')
-    bMaxPacketSize0 = ByteItemDefinition('bMaxPacketSize0')
-    idVendor = WordItemDefinition('idVendor')
-    idProduct = WordItemDefinition('idProduct')
-    bcdDevice = WordItemDefinition('bcdDevice')
+class SizedContent(BinaryContent):
+    """
+    Binary content which has an explicit size between 1 and 4 bytes
 
-@descriptor_tag('string')
-@descriptor_type(0x03)
-class StringDescriptor(Descriptor):
-    bLength = LengthItemDefinition()
-    bDescriptorType = DescriptorTypeDefinition()
-    wString = TextItemDefinition('wString')
+    This can have a content function which is invoked when the item is
+    iterated, or it can take its content from the text of the element
+    """
+    def __init__(self, el, parent=None, size=None, contentfn=None):
+        self.size = int(el.attrib['size'], 0) if size is None else size
+        self.contentfn = contentfn if contentfn else lambda: el.text
+        super().__init__(el, parent)
+    def __len__(self):
+        return self.size
+    def __iter__(self):
+        content = self.contentfn()
+        parts = ['((({}) >> {}) & 0xFF)'.format(content, i*8) for i in range(0, self.size)]
+        yield ', '.join(parts)
+
+@child_of(Descriptor)
+@handles_tag('hidden')
+class HiddenContent(SizedContent):
+    """
+    Sized content which has a name and content, but has no size in generated code
+    """
+    def __init__(self, el, parent=None):
+        if not el.text:
+            raise ValueError('HiddenContent expects a non-empty element text')
+        super().__init__(el, parent, size=0)
+
+@child_of(Descriptor)
+@handles_tag('byte')
+class ByteContent(SizedContent):
+    """
+    Binary content for a single constant byte
+    """
+    def __init__(self, el, parent=None):
+        if not el.text:
+            raise ValueError('ByteContent expects a non-empty element text')
+        super().__init__(el, parent, size=1)
+
+@child_of(Descriptor)
+@handles_tag('word')
+class WordContent(SizedContent):
+    """
+    Binary content for a two constant bytes
+    """
+    def __init__(self, el, parent=None):
+        if not el.text:
+            raise ValueError('WordContent expects a non-empty element text')
+        self.content = el.text
+        super().__init__(el, parent, size=2)
+
+@child_of(Descriptor)
+@handles_tag('string')
+class StringContent(BinaryContent):
+    """
+    String constant content
+    """
+    def __init__(self, el, parent=None):
+        if not el.text:
+            raise ValueError('StringContent expects a non-empty element text')
+        self.bytes = el.text.encode('utf_16_le')
+        super().__init__(el, parent)
+    def __iter__(self):
+        return ['{}, 0x{:02X}'.format("'{}'".format(chr(self.bytes[i])) if self.bytes[i+1] == 0 else hex(self, bytes[i]), self.bytes[i+1])
+            for i in range(0, len(self.raw), 2)]
+    def __len__(self):
+        return len(self.bytes)
+
+@child_of(Descriptor)
+@handles_tag('length')
+class DescriptorLength(SizedContent):
+    """
+    Generates content containing the length of the parent descriptor
+    """
+    def __init__(self, el, parent):
+        #TODO: Make this require a parent and count the length of the parent plus all descriptors which claim it as a parent
+        # (this is the "all" attribute)
+        self.parent = parent
+        super().__init__(el, parent, contentfn=self.parent_length)
+    def parent_length(self):
+        return sum([len(c) for c in self.parent.children if hasattr(c, '__len__')])
+
+@child_of(Descriptor)
+@handles_tag('type')
+class DescriptorType(SizedContent):
+    """
+    Generates content containing the type of the parent descriptor
+    """
+    def __init__(self, el, parent):
+        self.parent = parent
+        super().__init__(el, parent, contentfn=self.parent_type)
+    def parent_type(self):
+        return self.parent.type
+
+@child_of(Descriptor)
+@handles_tag('ref')
+class DescriptorRef(SizedContent):
+    """
+    Generates content containing the index of another descriptor
+    """
+    def __init__(self, el, parent=None):
+        self.type = int(el.attrib['type'], 0)
+        self.refid = el.attrib['refid']
+        super().__init__(el, parent, contentfn=self.index)
+    def index(self):
+        return self.__index
+    def post_parse(self, descriptor_collection):
+        #TODO: Query the descriptor collection for the index of the referenced descriptor
+        pass
+
+@child_of(Descriptor)
+@handles_tag('count')
+class DescriptorCount(SizedContent):
+    """
+    Generates content containing the total number of some type of descriptor.
+    """
+    def __init__(self, el, parent=None):
+        #TODO: Make this require a parent and only count descriptors which claim our parent too
+        # (this is the "associated" attribute)
+        self.type = int(el.attrib['type'], 0)
+        super().__init__(el, parent, contentfn=self.count)
+    def count(self):
+        return self.__count
+    def post_parse(self, descriptor_collection):
+        #TODO: Query the descriptor collection for the count of the descriptor type
+        pass
+
+@child_of(Descriptor)
+@handles_tag('foreach')
+class ForeachDescriptor(TagHandler):
+    """
+    Iterates descriptors of a particular type and generates content from them
+    """
+    def __init__(self, el, parent=None):
+        self.type = int(el.attrib['type'], 0)
+        super().__init__(el, parent)
+
+@child_of(ForeachDescriptor)
+@handles_tag('echo')
+class EchoContent(BinaryContent):
+    """
+    Echoes content of a particular name from a descriptor
+    """
+    def __init__(self, el, parent=None):
+        super().__init__(el, parent)
+    def post_parse(self, descriptor_collection):
+        #TODO: Query all descriptors of our type and gather any SizedContent that matches our name
+        pass
+    def __iter__(self):
+        pass
+    def __len__(self):
+        pass
+
+@child_of(Descriptor)
+@handles_tag('children')
+class ChildrenContent(TagHandler):
+    """
+    Iterates descriptors which claim our parent as theirs and generates
+    content from them
+    """
+    def __init__(self, el, parent):
+        self.type = int(el.attrib['type'], 0)
+        super().__init__(el, parent)
 
 ###############################################################################
 # Formatting and organization
@@ -349,11 +344,11 @@ class DescriptorCollectionBuilder(object):
         """
         Adds descriptors to the collection from the passed element
         """
-        for d in Descriptor.parse_descriptor_el(el):
-            if d.descriptor_type not in self.descriptors:
-                self.descriptors[d.descriptor_type] = [d]
+        for d in TagHandler.parse(el):
+            if d.type not in self.descriptors:
+                self.descriptors[d.type] = [d]
             else:
-                self.descriptors[d.descriptor_type].append(d)
+                self.descriptors[d.type].append(d)
 
     def find(self, descriptor_type):
         """
@@ -413,13 +408,24 @@ def extract_c_comments(filename):
                 no_stars = stripped.lstrip('*')
                 gathered = gathered + no_stars if gathered else no_stars
 
-def extract_elements(fragment):
+def extract_elements(fragment, fname=None):
     """
     Extracts possible descriptor elements from the passed fragment
 
     Returns an interable
     """
-    return ET.fromstring('<root>' + fragment + '</root>')
+    try:
+        return ET.fromstring('<root>' + fragment + '</root>')
+    except ET.ParseError as e:
+        source_lines = fragment.splitlines()
+        max_lines = str(len(source_lines))
+        numbers = [str(i).ljust(len(max_lines)) + ' |' for i in range(1, len(source_lines)+1)]
+        numbered_lines = list([''.join(t) for t in zip(numbers, source_lines)])
+        min_line = max(1, e.position[0]-3) - 1
+        max_line = min(len(source_lines)+1, e.position[0]+3) - 1
+        fname = fname + os.linesep if fname else ''
+        e.xml_source = fname + os.linesep.join(numbered_lines[min_line:max_line])
+        raise
 
 def main():
     parser = argparse.ArgumentParser(description='Parses USB descriptors into a C file',
@@ -436,11 +442,16 @@ def main():
 
     descriptors = DescriptorCollectionBuilder()
     for f in args.files:
-        elements = [el for c in extract_c_comments(f) for el in extract_elements(c)]
+        elements = [el for c in extract_c_comments(f) for el in extract_elements(c, f)]
         for el in elements:
             descriptors.add_descriptors(el)
     print(descriptors.descriptors)
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except ET.ParseError as e:
+        print(traceback.format_exc())
+        if hasattr(e, 'xml_source'):
+            print(e.xml_source)
 
