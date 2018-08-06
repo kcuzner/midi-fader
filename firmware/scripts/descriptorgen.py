@@ -57,6 +57,12 @@ def child_of(tag_cls):
         return cls
     return decorator
 
+def attrib_bool(el, attr_name):
+    """
+    Determines if the boolean attribute is set or cleared
+    """
+    return attr_name in el and el.attrib[attr_name] == attr_name
+
 class TagHandler(object):
     """
     Base object which handles a tag and nested tags
@@ -125,6 +131,8 @@ class Descriptor(TagHandler):
         if parent is not None:
             raise ValueError('A descriptor may not be the child of any element')
         self.type = int(el.attrib['type'], 0)
+        self.top = 'childof' not in el.attrib or attrib_bool(el, 'top')
+        self.parentid = el.attrib['childof'] if 'childof' in el.attrib else None
         super().__init__(el, parent)
     def to_source(self):
         return os.linesep.join([c.to_source() for c in self.children if hasattr(c, 'to_source')])
@@ -233,6 +241,7 @@ class DescriptorLength(SizedContent):
     def __init__(self, el, parent):
         #TODO: Make this require a parent and count the length of the parent plus all descriptors which claim it as a parent
         # (this is the "all" attribute)
+        self.all = attrib_bool(el, 'all')
         self.parent = parent
         super().__init__(el, parent, contentfn=self.parent_length)
     def parent_length(self):
@@ -267,6 +276,21 @@ class DescriptorRef(SizedContent):
         pass
 
 @child_of(Descriptor)
+@handles_tag('index')
+class DescriptorIndex(SizedContent):
+    """
+    Generates content containing the parent descriptor's index
+    """
+    def __init__(self, el, parent):
+        self.parent = parent
+        super().__init__(el, parent, contentfn=self.index)
+    def index(self):
+        return self.__index
+    def post_parse(self, descriptor_collection):
+        #TODO: Query the descriptor collection for the index of our parent
+        pass
+
+@child_of(Descriptor)
 @handles_tag('count')
 class DescriptorCount(SizedContent):
     """
@@ -275,6 +299,7 @@ class DescriptorCount(SizedContent):
     def __init__(self, el, parent=None):
         #TODO: Make this require a parent and only count descriptors which claim our parent too
         # (this is the "associated" attribute)
+        self.associated = attrib_bool(el, 'associated')
         self.type = int(el.attrib['type'], 0)
         super().__init__(el, parent, contentfn=self.count)
     def count(self):
@@ -289,7 +314,9 @@ class ForeachDescriptor(TagHandler):
     """
     Iterates descriptors of a particular type and generates content from them
     """
-    def __init__(self, el, parent=None):
+    def __init__(self, el, parent):
+        self.parent = parent
+        self.associated = attrib_bool(el, 'associated')
         self.type = int(el.attrib['type'], 0)
         super().__init__(el, parent)
 
@@ -319,6 +346,49 @@ class ChildrenContent(TagHandler):
     def __init__(self, el, parent):
         self.type = int(el.attrib['type'], 0)
         super().__init__(el, parent)
+
+class Endpoint(SizedContent):
+    """
+    Generates an endpoint address
+    """
+    def __init__(self, el, parent=None, dir_in=False):
+        self.dir_in = dir_in
+        super().__init__(el, parent, size=1, contentfn=self.endpoint)
+    def endpoint(self):
+        return self.__endpoint
+    def post_parse(self, descriptor_collection):
+        #TODO: Get the next endpoint number from the descriptor
+        pass
+
+@child_of(Descriptor)
+@handles_tag('inendpoint')
+class InEndpoint(Endpoint):
+    """
+    Generates the endpoint address for an IN endpoint
+    """
+    def __init__(self, el, parent=None):
+        super().__init__(el, parent, True)
+
+@child_of(Descriptor)
+@handles_tag('outendpoint')
+class OutEndpoint(Endpoint):
+    """
+    Generates an endpoint address for an OUT endpoint
+    """
+    def __init__(self, el, parent=None):
+        super().__init__(el, parent, False)
+
+@child_of(Descriptor)
+@handles_tag('raw')
+class RawContent(TagHandler):
+    """
+    Generates raw text content
+    """
+    def __init__(self, el, parent=None):
+        self.raw = el.text
+        super().__init__(el, parent)
+    def to_source(self):
+        return self.raw
 
 ###############################################################################
 # Formatting and organization

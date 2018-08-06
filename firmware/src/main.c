@@ -48,7 +48,7 @@
  *  <type name="bDescriptorType" size="1" />
  *  <string name="wString">Midi-Fader</string>
  * </descriptor>
- * <descriptor id="configuration" type="0x03">
+ * <descriptor id="configuration" type="0x02">
  *  <length name="bLength" size="1" />
  *  <type name="bDescriptorType" size="1" />
  *  <length name="wTotalLength" size="2" all="all" />
