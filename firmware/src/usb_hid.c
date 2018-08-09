@@ -19,7 +19,7 @@
  *  <children type="0x21" />
  *  <children type="0x05" />
  * </descriptor>
- * <descriptor id="hid" type="0x21" childof="hidinterface">
+ * <descriptor id="hid" type="0x21" childof="hid_interface">
  *  <length name="bLength" size="1" />
  *  <type name="bDescriptorType" size="1" />
  *  <word name="bcdHID">0x0111</word>
@@ -30,7 +30,7 @@
  *    <echo name="wLength" />
  *  </foreach>
  * </descriptor>
- * <descriptor id="hid_in_endpoint" type="0x05" childof="hidinterface">
+ * <descriptor id="hid_in_endpoint" type="0x05" childof="hid_interface">
  *  <length name="bLength" size="1" />
  *  <type name="bDescriptorType" size="1" />
  *  <inendpoint name="bEndpointAddress" define="HID_IN_ENDPOINT" />
@@ -38,7 +38,7 @@
  *  <word name="wMaxPacketSize">USB_HID_ENDPOINT_SIZE</word>
  *  <byte name="bInterval">10</byte>
  * </descriptor>
- * <descriptor id="hid_out_endpoint" type="0x05" childof="hidinterface">
+ * <descriptor id="hid_out_endpoint" type="0x05" childof="hid_interface">
  *  <length name="bLength" size="1" />
  *  <type name="bDescriptorType" size="1" />
  *  <outendpoint name="bEndpointAddress" define="HID_OUT_ENDPOINT" />
@@ -47,6 +47,8 @@
  *  <byte name="bInterval">10</byte>
  * </descriptor>
  * <descriptor id="hid_report" childof="hid" top="top" type="0x22">
+ *  <hidden name="bDescriptorType" size="1">0x22</hidden>
+ *  <hidden name="wLength" size="2">sizeof(hid_report)</hidden>
  *  <raw>
  *  HID_SHORT(0x04, 0x00, 0xFF), //USAGE_PAGE (Vendor Defined)
  *  HID_SHORT(0x08, 0x01), //USAGE (Vendor 1)

@@ -36,13 +36,13 @@
  *    <echo name="wLang" />
  *  </foreach>
  * </descriptor>
- * <descriptor id="manufacturer" type="0x03">
+ * <descriptor id="manufacturer" type="0x03" wIndex="0x0409">
  *  <hidden name="wLang" size="2">0x0409</hidden>
  *  <length name="bLength" size="1" />
  *  <type name="bDescriptorType" size="1" />
  *  <string name="wString">kevincuzner.com</string>
  * </descriptor>
- * <descriptor id="product" type="0x03">
+ * <descriptor id="product" type="0x03" wIndex="0x0409">
  *  <hidden name="wLang" size="2">0x0409</hidden>
  *  <length name="bLength" size="1" />
  *  <type name="bDescriptorType" size="1" />

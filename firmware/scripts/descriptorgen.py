@@ -17,6 +17,7 @@ line.
 """
 
 import argparse, textwrap, logging, os, inspect, traceback
+from itertools import chain
 from collections import namedtuple, OrderedDict
 import xml.etree.ElementTree as ET
 
@@ -61,7 +62,7 @@ def attrib_bool(el, attr_name):
     """
     Determines if the boolean attribute is set or cleared
     """
-    return attr_name in el and el.attrib[attr_name] == attr_name
+    return attr_name in el.attrib and el.attrib[attr_name] == attr_name
 
 class TagHandler(object):
     """
@@ -77,18 +78,6 @@ class TagHandler(object):
                 yield c(el, parent)
         if not handled:
             TagHandler.logger.warn('Element {} was not handled'.format(el))
-
-    def __init__(self, el, parent=None):
-        if not type(self).match_tag(el):
-            raise ValueError('Type {} cannot handle {}'.format(type(self), el))
-        # all tags may have an ID
-        self.id = el.attrib['id'] if 'id' in el.attrib else None
-        self.children = []
-        for e in el:
-            if self.match_child(e):
-                self.children.extend(TagHandler.parse(e, self))
-            else:
-                raise ValueError('{}: Unexpected child {}'.format(el, e))
 
     @classmethod
     def subclasses(cls):
@@ -120,6 +109,24 @@ class TagHandler(object):
             if isinstance(attr, NestedType) and attr.type.match_tag(el):
                 return True
         return False
+    def __init__(self, el, parent=None):
+        if not type(self).match_tag(el):
+            raise ValueError('Type {} cannot handle {}'.format(type(self), el))
+        # all tags may have an ID
+        self.id = el.attrib['id'] if 'id' in el.attrib else None
+        self.children = []
+        for e in el:
+            if self.match_child(e):
+                self.children.extend(TagHandler.parse(e, self))
+            else:
+                raise ValueError('{}: Unexpected child {}'.format(el, e))
+
+    def post_parse(self, descriptor_collection):
+        """
+        Handles post-parse events in this handler and others following
+        """
+        for c in self.children:
+            c.post_parse(descriptor_collection)
 
 @handles_tag('descriptor')
 class Descriptor(TagHandler):
@@ -131,11 +138,22 @@ class Descriptor(TagHandler):
         if parent is not None:
             raise ValueError('A descriptor may not be the child of any element')
         self.type = int(el.attrib['type'], 0)
-        self.top = 'childof' not in el.attrib or attrib_bool(el, 'top')
+        self.top = ('childof' not in el.attrib) or attrib_bool(el, 'top')
+        self.first = attrib_bool(el, 'first')
         self.parentid = el.attrib['childof'] if 'childof' in el.attrib else None
+        self.wIndex = int(el.attrib['wIndex'], 0) if 'wIndex' in el.attrib else 0
         super().__init__(el, parent)
+    @property
+    def index(self):
+        assert hasattr(self, '_index')
+        return self._index
+    @index.setter
+    def index(self, i):
+        self._index = i
     def to_source(self):
         return os.linesep.join([c.to_source() for c in self.children if hasattr(c, 'to_source')])
+    def __repr__(self):
+        return '<{}: Id: {}, Type: {}>'.format(type(self), self.id, self.type)
 
 class BinaryContent(TagHandler):
     """
@@ -160,7 +178,9 @@ class BinaryContent(TagHandler):
         """
         raise NotImplementedError
     def to_source(self):
-        source = ['{},'.format(b) for b in self]
+        source = list(['{},'.format(b) for b in self])
+        if len(source):
+            source[0] += ' //' + self.name
         return os.linesep.join(source)
 
 class SizedContent(BinaryContent):
@@ -178,19 +198,22 @@ class SizedContent(BinaryContent):
         return self.size
     def __iter__(self):
         content = self.contentfn()
-        parts = ['((({}) >> {}) & 0xFF)'.format(content, i*8) for i in range(0, self.size)]
-        yield ', '.join(parts)
+        parts = list(['((({}) >> {}) & 0xFF)'.format(content, i*8) for i in range(0, self.size)])
+        if len(parts):
+            yield ', '.join(parts)
 
 @child_of(Descriptor)
 @handles_tag('hidden')
 class HiddenContent(SizedContent):
     """
-    Sized content which has a name and content, but has no size in generated code
+    Sized content which has a name and content, but does not generate any source
     """
     def __init__(self, el, parent=None):
         if not el.text:
             raise ValueError('HiddenContent expects a non-empty element text')
-        super().__init__(el, parent, size=0)
+        super().__init__(el, parent)
+    def to_source(self):
+        return ''
 
 @child_of(Descriptor)
 @handles_tag('byte')
@@ -227,8 +250,9 @@ class StringContent(BinaryContent):
         self.bytes = el.text.encode('utf_16_le')
         super().__init__(el, parent)
     def __iter__(self):
-        return ['{}, 0x{:02X}'.format("'{}'".format(chr(self.bytes[i])) if self.bytes[i+1] == 0 else hex(self, bytes[i]), self.bytes[i+1])
-            for i in range(0, len(self.raw), 2)]
+        for word in ['{}, 0x{:02X}'.format("'{}'".format(chr(self.bytes[i])) if self.bytes[i+1] == 0 else hex(self, bytes[i]), self.bytes[i+1])
+                for i in range(0, len(self.bytes), 2)]:
+            yield word
     def __len__(self):
         return len(self.bytes)
 
@@ -245,7 +269,9 @@ class DescriptorLength(SizedContent):
         self.parent = parent
         super().__init__(el, parent, contentfn=self.parent_length)
     def parent_length(self):
-        return sum([len(c) for c in self.parent.children if hasattr(c, '__len__')])
+        length = sum([len(c) for c in self.parent.children
+            if hasattr(c, '__len__') and (self.all or not isinstance(c, ChildrenContent))])
+        return length
 
 @child_of(Descriptor)
 @handles_tag('type')
@@ -267,13 +293,14 @@ class DescriptorRef(SizedContent):
     """
     def __init__(self, el, parent=None):
         self.type = int(el.attrib['type'], 0)
+        #TODO: Get rid of type, there's no need
         self.refid = el.attrib['refid']
         super().__init__(el, parent, contentfn=self.index)
     def index(self):
         return self.__index
     def post_parse(self, descriptor_collection):
-        #TODO: Query the descriptor collection for the index of the referenced descriptor
-        pass
+        super().post_parse(descriptor_collection)
+        self.__index = descriptor_collection.find_by_id(self.refid).index
 
 @child_of(Descriptor)
 @handles_tag('index')
@@ -287,8 +314,8 @@ class DescriptorIndex(SizedContent):
     def index(self):
         return self.__index
     def post_parse(self, descriptor_collection):
-        #TODO: Query the descriptor collection for the index of our parent
-        pass
+        super().post_parse(descriptor_collection)
+        self.__index = self.parent.index
 
 @child_of(Descriptor)
 @handles_tag('count')
@@ -297,16 +324,17 @@ class DescriptorCount(SizedContent):
     Generates content containing the total number of some type of descriptor.
     """
     def __init__(self, el, parent=None):
-        #TODO: Make this require a parent and only count descriptors which claim our parent too
-        # (this is the "associated" attribute)
+        self.parent = parent
         self.associated = attrib_bool(el, 'associated')
         self.type = int(el.attrib['type'], 0)
         super().__init__(el, parent, contentfn=self.count)
     def count(self):
         return self.__count
     def post_parse(self, descriptor_collection):
-        #TODO: Query the descriptor collection for the count of the descriptor type
-        pass
+        super().post_parse(descriptor_collection)
+        descriptors = [d for d in descriptor_collection.find_by_type(self.type)
+                if not self.associated or self.parent is None or d.parentid == self.parent.id]
+        self.__count = len(descriptors)
 
 @child_of(Descriptor)
 @handles_tag('foreach')
@@ -319,22 +347,33 @@ class ForeachDescriptor(TagHandler):
         self.associated = attrib_bool(el, 'associated')
         self.type = int(el.attrib['type'], 0)
         super().__init__(el, parent)
+    def post_parse(self, descriptor_collection):
+        self.child_descriptors = [d for d in descriptor_collection.find_by_type(self.type)\
+                if self.parent != d and (not self.associated or d.parentid == self.parent.id)]
+    def __len__(self):
+        return sum([len(c) for c in self.children if hasattr(c, '__len__')])
+    def to_source(self):
+        return os.linesep.join([line for c in self.children for line in c])
+
 
 @child_of(ForeachDescriptor)
 @handles_tag('echo')
 class EchoContent(BinaryContent):
     """
-    Echoes content of a particular name from a descriptor
+    Echoes binary content of a particular name from a descriptor
     """
-    def __init__(self, el, parent=None):
+    def __init__(self, el, parent):
+        self.parent = parent
         super().__init__(el, parent)
-    def post_parse(self, descriptor_collection):
-        #TODO: Query all descriptors of our type and gather any SizedContent that matches our name
-        pass
+    def __to_echo(self):
+        return [c for d in self.parent.child_descriptors\
+                for c in d.children if isinstance(c, BinaryContent) and c.name == self.name]
     def __iter__(self):
-        pass
+        for d in self.__to_echo():
+            for line in d:
+                yield line
     def __len__(self):
-        pass
+        return sum([len(d) for d in self.__to_echo()])
 
 @child_of(Descriptor)
 @handles_tag('children')
@@ -344,8 +383,24 @@ class ChildrenContent(TagHandler):
     content from them
     """
     def __init__(self, el, parent):
+        self.parent = parent
         self.type = int(el.attrib['type'], 0)
         super().__init__(el, parent)
+    def post_parse(self, descriptor_collection):
+        super().post_parse(descriptor_collection)
+        all_of_type = descriptor_collection.find_by_type(self.type)
+        self.child_descriptors = [d for d in all_of_type if d.parentid == self.parent.id]
+    def __len__(self):
+        return sum([len(c) for d in self.child_descriptors for c in d.children if hasattr(c, '__len__')])
+    def __iter__(self):
+        for d in self.child_descriptors:
+            yield '/** Descriptor "{}" (type: {}) begin **/'.format(d.id, d.type)
+            # Indent the child content slightly
+            yield '  ' + d.to_source().replace('\n', '\n  ')
+            yield '/** Descriptor "{}" (type: {}) end **/'.format(d.id, d.type)
+    def to_source(self):
+        return os.linesep.join(self)
+
 
 class Endpoint(SizedContent):
     """
@@ -355,10 +410,10 @@ class Endpoint(SizedContent):
         self.dir_in = dir_in
         super().__init__(el, parent, size=1, contentfn=self.endpoint)
     def endpoint(self):
-        return self.__endpoint
+        return '{:#04x}'.format(self.__endpoint | (0x80 if self.dir_in else 0))
     def post_parse(self, descriptor_collection):
-        #TODO: Get the next endpoint number from the descriptor
-        pass
+        super().post_parse(descriptor_collection)
+        self.__endpoint = descriptor_collection.reserve_endpoint()
 
 @child_of(Descriptor)
 @handles_tag('inendpoint')
@@ -419,16 +474,11 @@ class DescriptorCollectionBuilder(object):
                 self.descriptors[d.type] = [d]
             else:
                 self.descriptors[d.type].append(d)
-
-    def find(self, descriptor_type):
-        """
-        Finds all descriptors of the passed type
-        """
-        typenum = descriptor_type.descriptor_type()
-        if typenum not in self.descriptors:
-            return []
-        else:
-            return self.descriptors[typenum]
+    
+    def __iter__(self):
+        for n, arry in self.descriptors.items():
+            for d in arry:
+                yield n, d
 
     def compile(self):
         """
@@ -443,16 +493,76 @@ class DescriptorCollection(object):
     """
     Collection of descriptors that are related.
     """
-    def __init__(self, builder):
-        # 1. Extract the device descriptor
-        if len(builder.find(DeviceDescriptor)) != 1:
-            raise BadDefinitionError('Expected exactly 1 device descriptor, found {}'.format(len(builder.find(DeviceDescriptor))))
-        self.__device = builder.find(DeviceDescriptor)[0]
-        # 2. Extract all other types of descriptors, of which there can be many
+    def __init__(self, builder, max_endpoints=8):
+        self.__endpoint = 0
+        self.max_endpoints = max_endpoints
+        self.top = {}
+        self.by_id = {}
+        self.by_type = {}
+        self.indexes = {}
+        for typenum, desc in builder:
+            # Handle top-level descriptors
+            if desc.top:
+                if typenum not in self.top:
+                    self.top[typenum] = [desc]
+                else:
+                    self.top[typenum].append(desc)
+            # Index by id
+            if desc.id in self.by_id:
+                raise BadDefinitionError('Duplicate descriptor id {}'.format(desc.id))
+            self.by_id[desc.id] = desc
+            # Index by type
+            if typenum not in self.by_type:
+                self.by_type[typenum] = [desc]
+            else:
+                self.by_type[typenum].append(desc)
+            # Assign indexes
+            if typenum not in self.indexes:
+                self.indexes[typenum] = 0
+            desc.index = self.indexes[typenum]
+            self.indexes[typenum] += 1
+        for typenum, desc in builder:
+            # Handle post-parse events
+            desc.post_parse(self)
+
+        
+    def find_by_id(self, idname):
+        return self.by_id[idname] if idname in self.by_id else None
+
+    def find_by_type(self, typenum):
+        return self.by_type[typenum] if typenum in self.by_type else []
+
+    def reserve_endpoint(self):
+        if self.__endpoint >= self.max_endpoints:
+            raise BadDefinitionError("Maximum number of endpoints exceeded")
+        endp = self.__endpoint
+        self.__endpoint += 1
+        return endp
 
     @property
     def device(self):
         return self.__device
+
+    def to_source_iter(self):
+        for typenum, descriptors in self.top.items():
+            for d in descriptors:
+                yield 'static USB_DATA_ALIGN uint8_t {}[] = {{'.format(d.id)
+                # indent the descriptor slightly
+                yield '  ' + d.to_source().replace('\n', '\n  ')
+                yield '};\n'
+        yield 'const USBDescriptorEntry usb_descriptors[] = {'
+        for typenum, descriptors in self.top.items():
+            for d in descriptors:
+                yield '  {{ 0x{:02x}{:02x}, {:#06x}, sizeof({}), {} }},'\
+                        .format(d.type, d.index, d.wIndex, d.id, d.id)
+        yield '  { 0x0000, 0x0000, 0x00, NULL }'
+        yield '};'
+
+    def to_source(self):
+        """
+        Creates source code for our descriptors
+        """
+        return os.linesep.join(self.to_source_iter())
 
 
 ###############################################################################
@@ -510,12 +620,13 @@ def main():
 
     args = parser.parse_args()
 
-    descriptors = DescriptorCollectionBuilder()
+    builder = DescriptorCollectionBuilder()
     for f in args.files:
         elements = [el for c in extract_c_comments(f) for el in extract_elements(c, f)]
         for el in elements:
-            descriptors.add_descriptors(el)
-    print(descriptors.descriptors)
+            builder.add_descriptors(el)
+    descriptors = builder.compile()
+    print(descriptors.to_source())
 
 if __name__ == '__main__':
     try:
