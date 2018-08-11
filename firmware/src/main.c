@@ -19,6 +19,7 @@
  *  <type name="bDescriptorType" size="1" />
  *  <word name="bcdUSB">0x0200</word>
  *  <byte name="bDeviceClass">0</byte>
+ *  <byte name="bDeviceSubClass">0</byte>
  *  <byte name="bDeviceProtocol">0</byte>
  *  <byte name="bMaxPacketSize0">USB_CONTROL_ENDPOINT_SIZE</byte>
  *  <word name="idVendor">0x16c0</word>

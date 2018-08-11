@@ -7,7 +7,7 @@
  */
 
 #include "usb.h"
-#include "usb_desc.h"
+#include "_gen_usb_desc.h"
 #include "stm32f0xx.h"
 #include "osc.h"
 

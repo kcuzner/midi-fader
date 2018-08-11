@@ -11,6 +11,7 @@ PROJECT = midi-fader
 
 # Project Structure
 SRCDIRS = src cmsis/src
+GENSRCDIRS = src
 BINDIR = bin
 OBJDIR = obj
 GENDIR = obj/gen
@@ -22,10 +23,11 @@ CPU = cortex-m0
 # Sources
 GENERATE = USB_DESCRIPTOR
 SRC = $(foreach DIR,$(SRCDIRS),$(wildcard $(DIR)/*.c))
+GENSRC = $(foreach DIR,$(GENSRCDIRS),$(wildcard $(DIR)/*.c))
 ASM = $(foreach DIR,$(SRCDIRS),$(wildcard $(DIR)/*.s))
 
 # Include directories
-INCLUDE  = $(foreach DIR,$(INCDIRS),-I$(DIR)) -I$(GENDIR)
+INCLUDE  = $(foreach DIR,$(INCDIRS),-I$(DIR)) -I$(GENDIR) -I.
 
 # Linker
 LSCRIPT = STM32F042X6.ld
@@ -33,6 +35,7 @@ LSCRIPT = STM32F042X6.ld
 # C Flags
 GCFLAGS  = -std=c99 -Wall -Os -fno-common -mthumb -mcpu=$(CPU) -DSTM32F042x6 --specs=nosys.specs --specs=nano.specs -g -Wa,-ahlms=$(addprefix $(OBJDIR)/,$(notdir $(<:.c=.lst)))
 GCFLAGS += $(INCLUDE)
+CFLAGS   = $(GCFLAGS)
 LDFLAGS += -T$(LSCRIPT) -mthumb -mcpu=$(CPU) --specs=nosys.specs --specs=nano.specs -Wl,-Map,$(BINDIR)/$(PROJECT).map -Wl,--gc-sections
 ASFLAGS += -mcpu=$(CPU)
 
@@ -50,6 +53,10 @@ OBJDUMP = arm-none-eabi-objdump
 GDB = arm-none-eabi-gdb
 OCD = openocd
 
+# Code Generation
+PYTHON = python3
+DESCRIPTORGEN = $(PYTHON) ./scripts/descriptorgen.py
+
 RM = rm -rf
 
 #
@@ -63,7 +70,7 @@ GENERATE_USB_DESCRIPTOR_HDR=_gen_usb_desc.h
 OBJ := $(addprefix $(OBJDIR)/,$(notdir $(SRC:.c=.o)))
 OBJ += $(addprefix $(OBJDIR)/,$(notdir $(ASM:.s=.o)))
 ifneq ($(filter $(GENERATE), $(GENERATE_USB_DESCRIPTOR)),)
-	GEN_OBJ += $(OBJDIR)/$(GENERATE_USB_DESCRIPTOR_SRC:.c=.o)
+	GEN_OBJ += $(GENDIR)/$(GENERATE_USB_DESCRIPTOR_SRC:.c=.o)
 endif
 ALL_OBJ := $(OBJ) $(GEN_OBJ)
 DEP := $(addprefix $(OBJDIR)/,$(notdir $(SRC:.c=.d)))
@@ -99,6 +106,16 @@ size:
 
 $(BINDIR)/openocd.pid:
 	openocd/run-openocd-server.sh $(OCD) $@
+
+#
+# Code generation
+#
+$(GENERATE_USB_DESCRIPTOR):
+	@mkdir -p $(GENDIR)
+	$(DESCRIPTORGEN) -os $(GENDIR)/$(GENERATE_USB_DESCRIPTOR_SRC) \
+		-oh $(GENDIR)/$(GENERATE_USB_DESCRIPTOR_HDR) \
+		$(GENSRC)
+
 #
 # Compilation
 #
@@ -111,7 +128,7 @@ $(BINDIR)/$(PROJECT).bin: $(BINDIR)/$(PROJECT).elf
 
 $(BINDIR)/$(PROJECT).elf: $(ALL_OBJ) $(LSCRIPT)
 	@mkdir -p $(dir $@)
-	$(CC) $(OBJ) $(LDFLAGS) -o $(BINDIR)/$(PROJECT).elf
+	$(CC) $(ALL_OBJ) $(LDFLAGS) -o $(BINDIR)/$(PROJECT).elf
 	$(OBJDUMP) -D $(BINDIR)/$(PROJECT).elf > $(BINDIR)/$(PROJECT).lst
 	$(SIZE) $(BINDIR)/$(PROJECT).elf
 
@@ -133,19 +150,8 @@ endef
 # Generate rules for each source directory
 $(foreach DIR,$(SRCDIRS),$(eval $(call build_compile_rules,$(DIR))))
 
-# Ensure generated objects get run first
-$(OBJ): $(GEN_OBJ)
-
-# Rule for generated C files
-$(OBJDIR)/%.o: $(GENDIR)/%.c Makefile
-	@mkdir -p $(dir $@)
-	$(CC) $(GCFLAGS) -MMD -c $< -o $@
-
-# Generated USB descriptor source
-$(GENDIR)/$(GENERATE_USB_DESCRIPTOR_SRC): $(SRC) Makefile
-	@mkdir -p $(dir $@)
-	touch $@
-	touch $(GENDIR)/$(GENERATE_USB_DESCRIPTOR_HDR)
-
 -include $(DEP)
+
+# Ensure generated objects get run first
+$(OBJ): | $(GENERATE)
 

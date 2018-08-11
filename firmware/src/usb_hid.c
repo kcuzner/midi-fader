@@ -7,10 +7,12 @@
 #include "usb_hid.h"
 
 /**
+ * <include>usb_hid.h</include>
  * <descriptor id="hid_interface" type="0x04" childof="configuration">
  *  <length name="bLength" size="1" />
  *  <type name="bDescriptorType" size="1" />
  *  <index name="bInterfaceNumber" size="1" />
+ *  <byte name="bAlternateSetting">0</byte>
  *  <count name="bNumEndpoints" type="0x05" associated="associated" size="1" />
  *  <byte name="bInterfaceClass">0x03</byte>
  *  <byte name="bInterfaceSubClass">0x00</byte>
