@@ -132,7 +132,7 @@ static PMAWord *pma_break;
 /**
  * Holds the current setup status for an endpoint
  */
-static USBEndpointStatus endpoint_status[8];
+USBEndpointStatus endpoint_status[8];
 
 /**
  * Possible state of the control state machine
@@ -146,6 +146,44 @@ typedef struct {
     USBToken event;
     USBControlFn fn;
 } USBControlStateEntry;
+
+/**
+ * Debug functionality
+ */
+
+static void usb_debug_log_tx(uint8_t endpoint, void *addr, uint8_t len, uint16_t remaining);
+
+#ifdef USB_DEBUG
+typedef struct {
+    uint8_t endpoint;
+    void * addr;
+    uint8_t len;
+    uint16_t remaining;
+} USBTxHistoryEntry;
+
+#define USB_DEBUG_HISTORY_SIZE 64
+uint32_t usb_debug_history_counter = 0;
+USBTxHistoryEntry usb_debug_history[USB_DEBUG_HISTORY_SIZE];
+
+static void usb_debug_log_tx(uint8_t endpoint, void *addr, uint8_t len, uint16_t remaining)
+{
+    USBTxHistoryEntry entry = {
+        .endpoint = endpoint,
+        .addr = addr,
+        .len = len,
+        .remaining = remaining,
+    };
+    uint32_t index = usb_debug_history_counter++ % USB_DEBUG_HISTORY_SIZE;
+    usb_debug_history[index] = entry;
+}
+
+#else
+
+static void usb_debug_log_tx(uint8_t endpoint, void *addr, uint8_t len, uint16_t remaining)
+{
+}
+
+#endif //USB_DEBUG
 
 /**
  * Temporary buffer for sending or receiving miscellaneous data outside of descriptors and setup packets
@@ -335,8 +373,7 @@ static void usb_endpoint_send_next_packet(uint8_t endpoint)
     //set count to actual packet length
     *APPLICATION_ADDR(&bt[endpoint].tx_count) = len;
 
-    //move tx_pos
-    endpoint_status[endpoint].tx_pos += len;
+    usb_debug_log_tx(endpoint, endpoint_status[endpoint].tx_pos, len, endpoint_status[endpoint].tx_len - completedLength);
 
     //There are now three cases:
     // 1. We still have bytes to send

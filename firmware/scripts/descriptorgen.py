@@ -614,7 +614,7 @@ class DescriptorCollection(object):
  """.format(' '.join(sys.argv))
         for typenum, descriptors in self.top.items():
             for d in descriptors:
-                yield 'static USB_DATA_ALIGN uint8_t {}[] = {{'.format(d.id)
+                yield 'static const USB_DATA_ALIGN uint8_t {}[] = {{'.format(d.id)
                 # indent the descriptor slightly
                 yield '  ' + d.to_source().replace('\n', '\n  ')
                 yield '};\n'
