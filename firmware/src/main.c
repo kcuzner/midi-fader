@@ -9,6 +9,7 @@
 #include "usb.h"
 #include "usb_app.h"
 #include "usb_hid.h"
+#include "usb_midi.h"
 #include "osc.h"
 
 #include "_gen_usb_desc.h"
@@ -64,9 +65,14 @@
 
 #include <stddef.h>
 
+static const USBInterfaceListNode midi_interface_node = {
+    .interface = &midi_interface,
+    .next = NULL,
+};
+
 static const USBInterfaceListNode hid_interface_node = {
     .interface = &hid_interface,
-    .next = NULL,
+    .next = &midi_interface_node,
 };
 
 static const USBApplicationSetup setup = {

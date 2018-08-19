@@ -26,7 +26,8 @@
 //I believe these are being compacted to 1-byte alignment by default due
 //to the Os flag, but that's another guess. No hard faults occurred when
 //the flag was removed.
-#define USB_DATA_ALIGN __attribute__ ((aligned(2)))
+#define USB_DATA_ALIGN_ATTR aligned(2)
+#define USB_DATA_ALIGN __attribute__ ((USB_DATA_ALIGN_ATTR))
 
 #define USB_CONTROL_ENDPOINT_SIZE 64
 
