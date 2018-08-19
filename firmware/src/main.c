@@ -85,6 +85,11 @@ int main()
 
     usb_init();
     usb_app_init(&setup);
+
+    // Small delay to force a USB reset
+    // TODO: Make this timed
+    usb_disable();
+    for (uint32_t i = 0; i < 0xFFF; i++) { }
     usb_enable();
 
     while (1)

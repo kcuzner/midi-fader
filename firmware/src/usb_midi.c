@@ -305,8 +305,8 @@ static USBAppControlResult usb_midi_handle_setup_request(USBSetupPacket const *s
 
 static void usb_midi_set_configuration(uint16_t configuration)
 {
-    usb_endpoint_setup(MIDI_IN_ENDPOINT, MIDI_IN_ENDPOINT, USB_MIDI_ENDPOINT_SIZE, USB_ENDPOINT_BULK, USB_FLAGS_NONE);
-    usb_endpoint_setup(MIDI_OUT_ENDPOINT, MIDI_OUT_ENDPOINT, USB_MIDI_ENDPOINT_SIZE, USB_ENDPOINT_BULK, USB_FLAGS_NONE);
+    usb_endpoint_setup(MIDI_IN_ENDPOINT, 0x80 | MIDI_IN_ENDPOINT, USB_MIDI_ENDPOINT_SIZE, USB_ENDPOINT_BULK, USB_FLAGS_NONE);
+    usb_endpoint_setup(MIDI_OUT_ENDPOINT, 0x00 | MIDI_OUT_ENDPOINT, USB_MIDI_ENDPOINT_SIZE, USB_ENDPOINT_BULK, USB_FLAGS_NONE);
 
     hook_usb_midi_configured();
 }
