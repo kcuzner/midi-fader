@@ -12,8 +12,11 @@ microcontroller and has the following features:
 
 ## Prerequisites
 
+These are names of Arch Linux packages.
+
 - `arm-none-eabi-gcc`
 - `arm-none-eabi-binutils`
+- `python` (Python 3)
 - `openocd`
 
 ## Build process
