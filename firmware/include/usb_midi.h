@@ -51,12 +51,12 @@ typedef union {
             struct {
                 unsigned cableNumber:4;
                 unsigned codeIndex:4;
-            };
+            } __attribute__((packed));
         };
         uint8_t byte1;
         uint8_t byte2;
         uint8_t byte3;
-    };
+    } __attribute__ ((packed));
 } __attribute__((packed)) USBMidiEvent;
 
 /**

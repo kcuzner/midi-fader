@@ -92,8 +92,16 @@ int main()
     for (uint32_t i = 0; i < 0xFFF; i++) { }
     usb_enable();
 
+    uint8_t control[] = {
+        7,
+        64,
+    };
+
     while (1)
     {
+        for (uint32_t i = 0; i < 0xFFFF; i++) { }
+
+        usb_midi_send(MIDI_CTRL, control, sizeof(control));
     }
 
     return 0;

@@ -8,8 +8,11 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <assert.h>
+
 
 #include "_gen_usb_desc.h"
+#include "stm32f0xx.h"
 
 /**
  * Theory of Operation
@@ -40,12 +43,8 @@
  * reduce the impact of buffer non-availability when the user application is
  * queueing data.
  *
- * For receiving, there are also multi-buffered event buffers that are given to
- * the USB driver and released back to the MIDI Interface as the endpoint
- * receives events. When events are received, the MIDI Interface immediately
- * gives an empty buffer to the USB Driver so that it can continue receiving
- * events. The MIDI interface will then call the hook function to notify the
- * user application that events have been received.
+ * For receiving, there is only one buffer. After the hook_midi_usb_received
+ * function terminates, it is released back to the USB driver.
  *
  * Other than managing the Cable Numbers, the MIDI Interface does not do any
  * processing of the events. It is the responsibilty of the user application
@@ -170,6 +169,8 @@
 
 #define USB_MIDI_BUFFER_LEN 16
 
+static_assert(sizeof(USBMidiEvent) == 4, "USBMidiEvent must be 4 bytes");
+
 /**
  * Node in the linked list used for tracking buffers
  */
@@ -208,6 +209,15 @@ static MidiBufferEntry *midi_buffer_app = &midi_buffer_entry0;
  * Head of the USB buffer list
  */
 static MidiBufferEntry *midi_buffer_usb = NULL;
+/**
+ * Current buffer being transmitted
+ */
+static MidiBufferEntry *midi_buffer_usb_current = NULL;
+
+/**
+ * Receive buffer. No special stuff here.
+ */
+static USBMidiEvent midi_receive_buf[USB_MIDI_BUFFER_LEN];
 
 void __attribute__((weak)) hook_usb_midi_received(const USBMidiEvent *events, uint8_t eventCount) { }
 void __attribute__((weak)) hook_usb_midi_configured(void) { }
@@ -220,7 +230,10 @@ static void usb_midi_next_app_buffer(void)
     if (!midi_buffer_app)
         return;
 
-    // I'm about 99% sure we have a race condition here. I think I'll need to disable interrupts.
+    // Avoid race conditions. This function could be interrupted by the corresponding
+    // usb buffer function.
+    __disable_irq();
+
     MidiBufferEntry *new_buffer = midi_buffer_app;
     midi_buffer_app = midi_buffer_app->next;
     new_buffer->next = NULL;
@@ -236,32 +249,31 @@ static void usb_midi_next_app_buffer(void)
             current_entry = current_entry->next;
         current_entry->next = new_buffer;
     }
+
+    __enable_irq();
 }
 
 /**
- * Helper function which moves the current usb buffer to the application list
+ * Flushes the next buffer to be sent, if able
  */
-static void usb_midi_next_usb_buffer(void)
+void usb_midi_flush(void)
 {
-    if (!midi_buffer_usb)
+    // Are we already sending a buffer? Or is there no buffer to send?
+    if (midi_buffer_usb_current || !midi_buffer_usb)
         return;
 
-    //Probably a race condition here
-    MidiBufferEntry *new_buffer = midi_buffer_usb;
-    midi_buffer_usb = midi_buffer_usb->next;
-    new_buffer->next = NULL;
+    // Avoid a race condition
+    __disable_irq();
 
-    if (!midi_buffer_app)
-    {
-        midi_buffer_app = new_buffer;
-    }
-    else
-    {
-        MidiBufferEntry *current_entry = midi_buffer_app;
-        while (current_entry && current_entry->next)
-            current_entry = current_entry->next;
-        current_entry->next = new_buffer;
-    }
+    midi_buffer_usb_current = midi_buffer_usb;
+    midi_buffer_usb = midi_buffer_usb->next;
+
+    midi_buffer_usb_current->next = NULL;
+
+    usb_endpoint_send(MIDI_IN_ENDPOINT, midi_buffer_usb_current->buffer, midi_buffer_usb_current->length * sizeof(USBMidiEvent));
+
+    __enable_irq();
+
 }
 
 static void usb_midi_queue_event(const USBMidiEvent *event)
@@ -275,7 +287,7 @@ static void usb_midi_queue_event(const USBMidiEvent *event)
     if (index >= USB_MIDI_BUFFER_LEN)
     {
         usb_midi_next_app_buffer();
-        //TODO: Flush
+        usb_midi_flush();
     }
 }
 
@@ -309,18 +321,54 @@ static void usb_midi_set_configuration(uint16_t configuration)
     usb_endpoint_setup(MIDI_OUT_ENDPOINT, 0x00 | MIDI_OUT_ENDPOINT, USB_MIDI_ENDPOINT_SIZE, USB_ENDPOINT_BULK, USB_FLAGS_NONE);
 
     hook_usb_midi_configured();
+
+    //usb_endpoint_receive(MIDI_OUT_ENDPOINT, midi_receive_buf, sizeof(midi_receive_buf));
 }
 
 static void usb_midi_sof(void)
 {
+    usb_midi_flush();
 }
 
 static void usb_midi_endpoint_sent(uint8_t endpoint, void *buf, uint16_t len)
 {
+    if (endpoint == MIDI_IN_ENDPOINT)
+    {
+        __disable_irq();
+
+        MidiBufferEntry *current = midi_buffer_usb_current;
+        midi_buffer_usb_current = NULL;
+
+        current->length = 0;
+        current->next = NULL;
+
+        if (!midi_buffer_app)
+        {
+            midi_buffer_app = current;
+        }
+        else
+        {
+            MidiBufferEntry *target = midi_buffer_app;
+            while (target && target->next)
+                target = target->next;
+            target->next = current;
+        }
+
+        __enable_irq();
+
+        usb_midi_flush();
+    }
 }
 
 static void usb_midi_endpoint_received(uint8_t endpoint, void *buf, uint16_t len)
 {
+    if (endpoint == MIDI_OUT_ENDPOINT)
+    {
+        uint8_t count = len / sizeof(USBMidiEvent);
+        hook_usb_midi_received((USBMidiEvent *)buf, count);
+
+        usb_endpoint_receive(MIDI_OUT_ENDPOINT, midi_receive_buf, sizeof(midi_receive_buf));
+    }
 }
 
 const USBInterface midi_interface = {
