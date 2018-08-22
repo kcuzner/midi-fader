@@ -75,16 +75,17 @@ static const USBInterfaceListNode hid_interface_node = {
     .next = &midi_interface_node,
 };
 
-static const USBApplicationSetup setup = {
+const USBApplicationSetup setup = {
     .interface_list = &hid_interface_node,
 };
+
+const USBApplicationSetup *usb_app_setup = &setup;
 
 int main()
 {
     osc_request_hsi8();
 
     usb_init();
-    usb_app_init(&setup);
 
     // Small delay to force a USB reset
     // TODO: Make this timed
@@ -99,7 +100,7 @@ int main()
 
     while (1)
     {
-        for (uint32_t i = 0; i < 0xFFFF; i++) { }
+        for (uint32_t i = 0; i < 0xFFF; i++) { }
 
         usb_midi_send(MIDI_CTRL, control, sizeof(control));
     }

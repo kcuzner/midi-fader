@@ -16,17 +16,9 @@
  */
 
 #define FOREACH_INTERFACE(NODE)\
-    for (USBInterfaceListNode *NODE = usb_app_setup->interface_list; NODE; NODE = NODE->next)
+    for (const USBInterfaceListNode *NODE = usb_app_setup->interface_list; NODE; NODE = NODE->next)
 
-/**
- * Current USB application setup
- */
-static USBApplicationSetup *usb_app_setup = NULL;
-
-void usb_app_init(USBApplicationSetup *app_setup)
-{
-    usb_app_setup = app_setup;
-}
+__attribute__((weak)) const USBApplicationSetup *usb_app_setup = NULL;
 
 USBControlResult hook_usb_handle_setup_request(USBSetupPacket const *setup, USBTransferData *nextTransfer)
 {

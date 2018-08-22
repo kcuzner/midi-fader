@@ -118,7 +118,7 @@ typedef struct {
  */
 typedef struct USBInterfaceListNode {
     const USBInterface *interface;
-    struct USBInterfaceListNode *next;
+    const struct USBInterfaceListNode *next;
 } USBInterfaceListNode;
 
 typedef struct {
@@ -133,18 +133,15 @@ typedef struct {
     /**
      * Head of the interface list. This node will be visited first
      */
-    USBInterfaceListNode *interface_list;
+    const USBInterfaceListNode *interface_list;
 } USBApplicationSetup;
 
 /**
- * Attaches the USB Application layer to the passed app. The app should
- * be fully configured at the time this is called. It can be modified
- * later only in an interrupt-free context, as it will be actively used
- * during the USB interrupt.
+ * USB setup constant
  *
- * app_setup: USB application setup configuration
+ * Define this elsewhere, such as main
  */
-void usb_app_init(USBApplicationSetup *app_setup);
+extern const USBApplicationSetup *usb_app_setup;
 
 #endif //_USB_APP_H_
 
