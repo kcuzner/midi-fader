@@ -49,8 +49,8 @@ typedef union {
         union {
             uint8_t byte0;
             struct {
-                unsigned cableNumber:4;
                 unsigned codeIndex:4;
+                unsigned cableNumber:4;
             } __attribute__((packed));
         };
         uint8_t byte1;

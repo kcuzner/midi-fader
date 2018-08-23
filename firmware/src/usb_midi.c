@@ -260,7 +260,7 @@ void usb_midi_send(USBMidiCodeIndex codeIndex, const uint8_t *data, uint8_t len)
 
     // create the event
     USBMidiEvent event = {
-        .cableNumber = USB_MIDI_OUT_JACK_ID,
+        .cableNumber = 0,
         .codeIndex = codeIndex,
     };
     for (uint8_t i = 0; i < len; i++)
