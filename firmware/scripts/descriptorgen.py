@@ -455,14 +455,16 @@ class Endpoint(SizedContent):
     def __init__(self, el, parent=None, dir_in=False):
         self.dir_in = dir_in
         self.define = el.attrib['define']
-        super().__init__(el, parent, size=1, contentfn=self.endpoint)
-    def endpoint(self):
+        super().__init__(el, parent, size=1, contentfn=self.endpoint_address)
+    def endpoint_number(self):
+        return '{:#04X}'.format(self.__endpoint)
+    def endpoint_address(self):
         return '{:#04x}'.format(self.__endpoint | (0x80 if self.dir_in else 0))
     def post_parse(self, descriptor_collection):
         super().post_parse(descriptor_collection)
         self.__endpoint = descriptor_collection.reserve_endpoint()
     def to_header(self):
-        return '#define {} ({})'.format(self.define, self.endpoint())
+        return '#define {} ({})'.format(self.define, self.endpoint_number())
 
 @child_of(Descriptor)
 @handles_tag('inendpoint')
@@ -614,7 +616,7 @@ class DescriptorCollection(object):
  """.format(' '.join(sys.argv))
         for typenum, descriptors in self.top.items():
             for d in descriptors:
-                yield 'static USB_DATA_ALIGN uint8_t {}[] = {{'.format(d.id)
+                yield 'static const USB_DATA_ALIGN uint8_t {}[] = {{'.format(d.id)
                 # indent the descriptor slightly
                 yield '  ' + d.to_source().replace('\n', '\n  ')
                 yield '};\n'

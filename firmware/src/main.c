@@ -9,6 +9,7 @@
 #include "usb.h"
 #include "usb_app.h"
 #include "usb_hid.h"
+#include "usb_midi.h"
 #include "osc.h"
 
 #include "_gen_usb_desc.h"
@@ -64,25 +65,48 @@
 
 #include <stddef.h>
 
-static const USBInterfaceListNode hid_interface_node = {
-    .interface = &hid_interface,
+static const USBInterfaceListNode midi_interface_node = {
+    .interface = &midi_interface,
     .next = NULL,
 };
 
-static const USBApplicationSetup setup = {
+static const USBInterfaceListNode hid_interface_node = {
+    .interface = &hid_interface,
+    .next = &midi_interface_node,
+};
+
+const USBApplicationSetup setup = {
     .interface_list = &hid_interface_node,
 };
+
+const USBApplicationSetup *usb_app_setup = &setup;
 
 int main()
 {
     osc_request_hsi8();
 
     usb_init();
-    usb_app_init(&setup);
+
+    // Small delay to force a USB reset
+    // TODO: Make this timed
+    usb_disable();
+    for (uint32_t i = 0; i < 0xFFF; i++) { }
     usb_enable();
+
+    uint8_t control[] = {
+        0xB0,
+        7,
+        64,
+    };
 
     while (1)
     {
+        for (uint32_t i = 0; i < 0xFFF; i++) { }
+
+        control[2]++;
+        control[2] &= 0x7F;
+
+        usb_midi_send(MIDI_CTRL, control, sizeof(control));
     }
 
     return 0;

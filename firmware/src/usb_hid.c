@@ -107,8 +107,8 @@ static USBAppControlResult hid_usb_handle_setup_request(USBSetupPacket const *se
 
 static void hid_usb_set_configuration(uint16_t configuration)
 {
-    usb_endpoint_setup(HID_IN_ENDPOINT, 0x81, USB_HID_ENDPOINT_SIZE, USB_ENDPOINT_INTERRUPT, USB_FLAGS_NOZLP);
-    usb_endpoint_setup(HID_OUT_ENDPOINT, 0x02, USB_HID_ENDPOINT_SIZE, USB_ENDPOINT_INTERRUPT, USB_FLAGS_NOZLP);
+    usb_endpoint_setup(HID_IN_ENDPOINT, 0x80 | HID_IN_ENDPOINT, USB_HID_ENDPOINT_SIZE, USB_ENDPOINT_INTERRUPT, USB_FLAGS_NOZLP);
+    usb_endpoint_setup(HID_OUT_ENDPOINT, 0x00 | HID_OUT_ENDPOINT, USB_HID_ENDPOINT_SIZE, USB_ENDPOINT_INTERRUPT, USB_FLAGS_NOZLP);
 
     hook_usb_hid_configured();
 }

@@ -132,7 +132,7 @@ static PMAWord *pma_break;
 /**
  * Holds the current setup status for an endpoint
  */
-static USBEndpointStatus endpoint_status[8];
+USBEndpointStatus endpoint_status[8];
 
 /**
  * Possible state of the control state machine
@@ -146,6 +146,44 @@ typedef struct {
     USBToken event;
     USBControlFn fn;
 } USBControlStateEntry;
+
+/**
+ * Debug functionality
+ */
+
+static void usb_debug_log_tx(uint8_t endpoint, void *addr, uint8_t len, uint16_t remaining);
+
+#ifdef USB_DEBUG
+typedef struct {
+    uint8_t endpoint;
+    void * addr;
+    uint8_t len;
+    uint16_t remaining;
+} USBTxHistoryEntry;
+
+#define USB_DEBUG_HISTORY_SIZE 64
+uint32_t usb_debug_history_counter = 0;
+USBTxHistoryEntry usb_debug_history[USB_DEBUG_HISTORY_SIZE];
+
+static void usb_debug_log_tx(uint8_t endpoint, void *addr, uint8_t len, uint16_t remaining)
+{
+    USBTxHistoryEntry entry = {
+        .endpoint = endpoint,
+        .addr = addr,
+        .len = len,
+        .remaining = remaining,
+    };
+    uint32_t index = usb_debug_history_counter++ % USB_DEBUG_HISTORY_SIZE;
+    usb_debug_history[index] = entry;
+}
+
+#else
+
+static void usb_debug_log_tx(uint8_t endpoint, void *addr, uint8_t len, uint16_t remaining)
+{
+}
+
+#endif //USB_DEBUG
 
 /**
  * Temporary buffer for sending or receiving miscellaneous data outside of descriptors and setup packets
@@ -256,6 +294,11 @@ void usb_endpoint_setup(uint8_t endpoint, uint8_t address, uint16_t size, USBEnd
             type == USB_ENDPOINT_CONTROL ? USB_EP_CONTROL :
             USB_EP_INTERRUPT) |
         (address & 0xF);
+
+    uint32_t status = address & 0x80 ? USB_EP_TX_NAK : USB_EP_RX_NAK;
+    uint32_t mask = address & 0x80 ? USB_EPTX_STAT : USB_EPRX_STAT;
+    //The endpoint is active, it will now NAK
+    usb_set_endpoint_status(endpoint, status, mask);
 }
 
 /**
@@ -335,8 +378,7 @@ static void usb_endpoint_send_next_packet(uint8_t endpoint)
     //set count to actual packet length
     *APPLICATION_ADDR(&bt[endpoint].tx_count) = len;
 
-    //move tx_pos
-    endpoint_status[endpoint].tx_pos += len;
+    usb_debug_log_tx(endpoint, endpoint_status[endpoint].tx_pos, len, endpoint_status[endpoint].tx_len - completedLength);
 
     //There are now three cases:
     // 1. We still have bytes to send
@@ -393,7 +435,7 @@ void usb_endpoint_send(uint8_t endpoint, void *buf, uint16_t len)
     else
     {
         endpoint_status[endpoint].tx_pos = 0;
-        usb_set_endpoint_status(endpoint, USB_EP_TX_DIS, USB_EPTX_STAT);
+        usb_set_endpoint_status(endpoint, USB_EP_TX_NAK, USB_EPTX_STAT);
     }
 }
 
@@ -537,7 +579,7 @@ void usb_endpoint_receive(uint8_t endpoint, void *buf, uint16_t len)
     else
     {
         endpoint_status[endpoint].rx_pos = 0;
-        usb_set_endpoint_status(endpoint, USB_EP_RX_DIS, USB_EPRX_STAT);
+        usb_set_endpoint_status(endpoint, USB_EP_RX_NAK, USB_EPRX_STAT);
     }
 }
 
