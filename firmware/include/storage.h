@@ -19,20 +19,30 @@
  * Structure used by the storage generator to store data
  */
 typedef struct StoredValue {
-    uint32_t parameter;
-    uint32_t size;
+    uint16_t parameter;
+    uint16_t size;
     uint8_t data[];
 } StoredValue;
 
 /**
  * Reads a parameter from the storage area
+ *
+ * parameter: Parameter identifier
+ * buf: Buffer in which to place the data
+ * len: Length of the buffer in bytes
+ *
+ * Returns actual size of the read parameter
  */
-uint32_t storage_read(uint32_t parameter, void *buf, size_t len);
+size_t storage_read(uint16_t parameter, void *buf, size_t len);
 
 /**
  * Writes a parameter into the storage area
+ *
+ * paramter: Parameter identifier
+ * buf: Buffer from which to read the data
+ * len: Length of the data
  */
-void storage_write(uint32_t parameter, void *buf, size_t *len);
+void storage_write(uint16_t parameter, void *buf, size_t *len);
 
 #endif //_STORAGE_H_
 

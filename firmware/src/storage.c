@@ -25,7 +25,7 @@
  */
 extern StoredValue _sstorage;
 
-static StoredValue *storage_find(uint32_t parameter)
+static StoredValue *storage_find(uint16_t parameter)
 {
     StoredValue *current = &_sstorage;
     while (current->parameter != parameter && current->size != INVALID_SIZE)
@@ -48,7 +48,7 @@ static StoredValue *storage_find(uint32_t parameter)
     }
 }
 
-uint32_t storage_read(uint32_t parameter, void *buf, size_t len)
+size_t storage_read(uint16_t parameter, void *buf, size_t len)
 {
     StoredValue *value = storage_find(parameter);
     if (value == NULL)

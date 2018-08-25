@@ -1,128 +1,128 @@
 <!-- Default values for all configuration parameters -->
 <storage include="configuration.h">
-    <value name="EVENT_RATE" parameter="0x80000001" type="uint32">360</value>
+    <value name="EVENT_RATE" parameter="0x8001" type="uint32">360</value>
 
     <!-- These behaviors attempt to emulate a Mackie Control -->
     <!-- http://web.archive.org/web/20080126093602/http://members.aol.com/mhigrules/MCMap.htm -->
 
-    <value name="BTN0_CH" parameter="0x40000001" type="uint8">1</value>
-    <value name="BTN0_ON" parameter="0x40000002" type="uint8">127</value>
-    <value name="BTN0_OFF" parameter="0x40000003" type="uint8">0</value>
-    <value name="BTN0_MODE" parameter="0x40000004" type="uint8">CFG_MODE_NOTE</value>
-    <value name="BTN0_CTL" parameter="0x40000005" type="uint8">64</value>
-    <value name="BTN0_NOTE" parameter="0x40000006" type="uint8">60</value>
+    <value name="BTN0_CH" parameter="0x4001" type="uint8">1</value>
+    <value name="BTN0_ON" parameter="0x4002" type="uint8">127</value>
+    <value name="BTN0_OFF" parameter="0x4003" type="uint8">0</value>
+    <value name="BTN0_MODE" parameter="0x4004" type="uint8">CFG_MODE_NOTE</value>
+    <value name="BTN0_CTL" parameter="0x4005" type="uint8">64</value>
+    <value name="BTN0_NOTE" parameter="0x4006" type="uint8">60</value>
 
-    <value name="BTN1_CH" parameter="0x40000101" type="uint8">1</value>
-    <value name="BTN1_ON" parameter="0x40000102" type="uint8">127</value>
-    <value name="BTN1_OFF" parameter="0x40000103" type="uint8">0</value>
-    <value name="BTN1_MODE" parameter="0x40000104" type="uint8">CFG_MODE_NOTE</value>
-    <value name="BTN1_CTL" parameter="0x40000105" type="uint8">64</value>
-    <value name="BTN1_NOTE" parameter="0x40000106" type="uint8">61</value>
+    <value name="BTN1_CH" parameter="0x4101" type="uint8">1</value>
+    <value name="BTN1_ON" parameter="0x4102" type="uint8">127</value>
+    <value name="BTN1_OFF" parameter="0x4103" type="uint8">0</value>
+    <value name="BTN1_MODE" parameter="0x4104" type="uint8">CFG_MODE_NOTE</value>
+    <value name="BTN1_CTL" parameter="0x4105" type="uint8">64</value>
+    <value name="BTN1_NOTE" parameter="0x4106" type="uint8">61</value>
 
-    <value name="BTN2_CH" parameter="0x40000201" type="uint8">1</value>
-    <value name="BTN2_ON" parameter="0x40000202" type="uint8">127</value>
-    <value name="BTN2_OFF" parameter="0x40000203" type="uint8">0</value>
-    <value name="BTN2_MODE" parameter="0x40000204" type="uint8">CFG_MODE_NOTE</value>
-    <value name="BTN2_CTL" parameter="0x40000205" type="uint8">64</value>
-    <value name="BTN2_NOTE" parameter="0x40000206" type="uint8">62</value>
+    <value name="BTN2_CH" parameter="0x4201" type="uint8">1</value>
+    <value name="BTN2_ON" parameter="0x4202" type="uint8">127</value>
+    <value name="BTN2_OFF" parameter="0x4203" type="uint8">0</value>
+    <value name="BTN2_MODE" parameter="0x4204" type="uint8">CFG_MODE_NOTE</value>
+    <value name="BTN2_CTL" parameter="0x4205" type="uint8">64</value>
+    <value name="BTN2_NOTE" parameter="0x4206" type="uint8">62</value>
 
-    <value name="BTN3_CH" parameter="0x40000301" type="uint8">1</value>
-    <value name="BTN3_ON" parameter="0x40000302" type="uint8">127</value>
-    <value name="BTN3_OFF" parameter="0x40000303" type="uint8">0</value>
-    <value name="BTN3_MODE" parameter="0x40000304" type="uint8">CFG_MODE_NOTE</value>
-    <value name="BTN3_CTL" parameter="0x40000305" type="uint8">64</value>
-    <value name="BTN3_NOTE" parameter="0x40000306" type="uint8">63</value>
+    <value name="BTN3_CH" parameter="0x4301" type="uint8">1</value>
+    <value name="BTN3_ON" parameter="0x4302" type="uint8">127</value>
+    <value name="BTN3_OFF" parameter="0x4303" type="uint8">0</value>
+    <value name="BTN3_MODE" parameter="0x4304" type="uint8">CFG_MODE_NOTE</value>
+    <value name="BTN3_CTL" parameter="0x4305" type="uint8">64</value>
+    <value name="BTN3_NOTE" parameter="0x4306" type="uint8">63</value>
 
-    <value name="BTN4_CH" parameter="0x40000401" type="uint8">1</value>
-    <value name="BTN4_ON" parameter="0x40000402" type="uint8">127</value>
-    <value name="BTN4_OFF" parameter="0x40000403" type="uint8">0</value>
-    <value name="BTN4_MODE" parameter="0x40000404" type="uint8">CFG_MODE_NOTE</value>
-    <value name="BTN4_CTL" parameter="0x40000405" type="uint8">64</value>
-    <value name="BTN4_NOTE" parameter="0x40000406" type="uint8">64</value>
+    <value name="BTN4_CH" parameter="0x4401" type="uint8">1</value>
+    <value name="BTN4_ON" parameter="0x4402" type="uint8">127</value>
+    <value name="BTN4_OFF" parameter="0x4403" type="uint8">0</value>
+    <value name="BTN4_MODE" parameter="0x4404" type="uint8">CFG_MODE_NOTE</value>
+    <value name="BTN4_CTL" parameter="0x4405" type="uint8">64</value>
+    <value name="BTN4_NOTE" parameter="0x4406" type="uint8">64</value>
 
-    <value name="BTN5_CH" parameter="0x40000501" type="uint8">1</value>
-    <value name="BTN5_ON" parameter="0x40000502" type="uint8">127</value>
-    <value name="BTN5_OFF" parameter="0x40000503" type="uint8">0</value>
-    <value name="BTN5_MODE" parameter="0x40000504" type="uint8">CFG_MODE_NOTE</value>
-    <value name="BTN5_CTL" parameter="0x40000505" type="uint8">64</value>
-    <value name="BTN5_NOTE" parameter="0x40000506" type="uint8">65</value>
+    <value name="BTN5_CH" parameter="0x4501" type="uint8">1</value>
+    <value name="BTN5_ON" parameter="0x4502" type="uint8">127</value>
+    <value name="BTN5_OFF" parameter="0x4503" type="uint8">0</value>
+    <value name="BTN5_MODE" parameter="0x4504" type="uint8">CFG_MODE_NOTE</value>
+    <value name="BTN5_CTL" parameter="0x4505" type="uint8">64</value>
+    <value name="BTN5_NOTE" parameter="0x4506" type="uint8">65</value>
 
-    <value name="BTN6_CH" parameter="0x40000601" type="uint8">1</value>
-    <value name="BTN6_ON" parameter="0x40000602" type="uint8">127</value>
-    <value name="BTN6_OFF" parameter="0x40000603" type="uint8">0</value>
-    <value name="BTN6_MODE" parameter="0x40000604" type="uint8">CFG_MODE_NOTE</value>
-    <value name="BTN6_CTL" parameter="0x40000605" type="uint8">64</value>
-    <value name="BTN6_NOTE" parameter="0x40000606" type="uint8">66</value>
+    <value name="BTN6_CH" parameter="0x4601" type="uint8">1</value>
+    <value name="BTN6_ON" parameter="0x4602" type="uint8">127</value>
+    <value name="BTN6_OFF" parameter="0x4603" type="uint8">0</value>
+    <value name="BTN6_MODE" parameter="0x4604" type="uint8">CFG_MODE_NOTE</value>
+    <value name="BTN6_CTL" parameter="0x4605" type="uint8">64</value>
+    <value name="BTN6_NOTE" parameter="0x4606" type="uint8">66</value>
 
-    <value name="BTN7_CH" parameter="0x40000701" type="uint8">1</value>
-    <value name="BTN7_ON" parameter="0x40000702" type="uint8">127</value>
-    <value name="BTN7_OFF" parameter="0x40000703" type="uint8">0</value>
-    <value name="BTN7_MODE" parameter="0x40000704" type="uint8">CFG_MODE_NOTE</value>
-    <value name="BTN7_CTL" parameter="0x40000705" type="uint8">64</value>
-    <value name="BTN7_NOTE" parameter="0x40000706" type="uint8">67</value>
+    <value name="BTN7_CH" parameter="0x4701" type="uint8">1</value>
+    <value name="BTN7_ON" parameter="0x4702" type="uint8">127</value>
+    <value name="BTN7_OFF" parameter="0x4703" type="uint8">0</value>
+    <value name="BTN7_MODE" parameter="0x4704" type="uint8">CFG_MODE_NOTE</value>
+    <value name="BTN7_CTL" parameter="0x4705" type="uint8">64</value>
+    <value name="BTN7_NOTE" parameter="0x4706" type="uint8">67</value>
 
-    <value name="FDR0_CH" parameter="0x20000001" type="uint8">1</value>
-    <value name="FDR0_MODE" parameter="0x20000002" type="uint8">CFG_MODE_PITCH</value>
-    <value name="FDR0_CTL" parameter="0x20000003" type="uint8">7</value>
-    <value name="FDR0_CTL_MIN" parameter="0x20000004" type="uint8">0</value>
-    <value name="FDR0_CTL_MAX" parameter="0x20000005" type="uint8">127</value>
-    <value name="FDR0_PTCH_MIN" parameter="0x20000006" type="uint16">-8192</value>
-    <value name="FDR0_PTCH_MAX" parameter="0x20000007" type="uint16">8192</value>
+    <value name="FDR0_CH" parameter="0x2001" type="uint8">1</value>
+    <value name="FDR0_MODE" parameter="0x2002" type="uint8">CFG_MODE_PITCH</value>
+    <value name="FDR0_CTL" parameter="0x2003" type="uint8">7</value>
+    <value name="FDR0_CTL_MIN" parameter="0x2004" type="uint8">0</value>
+    <value name="FDR0_CTL_MAX" parameter="0x2005" type="uint8">127</value>
+    <value name="FDR0_PTCH_MIN" parameter="0x2006" type="uint16">-8192</value>
+    <value name="FDR0_PTCH_MAX" parameter="0x2007" type="uint16">8192</value>
 
-    <value name="FDR1_CH" parameter="0x20000101" type="uint8">2</value>
-    <value name="FDR1_MODE" parameter="0x20000102" type="uint8">CFG_MODE_PITCH</value>
-    <value name="FDR1_CTL" parameter="0x20000103" type="uint8">7</value>
-    <value name="FDR1_CTL_MIN" parameter="0x20000104" type="uint8">0</value>
-    <value name="FDR1_CTL_MAX" parameter="0x20000105" type="uint8">127</value>
-    <value name="FDR1_PTCH_MIN" parameter="0x20000106" type="uint16">-8192</value>
-    <value name="FDR1_PTCH_MAX" parameter="0x20000107" type="uint16">8192</value>
+    <value name="FDR1_CH" parameter="0x2101" type="uint8">2</value>
+    <value name="FDR1_MODE" parameter="0x2102" type="uint8">CFG_MODE_PITCH</value>
+    <value name="FDR1_CTL" parameter="0x2103" type="uint8">7</value>
+    <value name="FDR1_CTL_MIN" parameter="0x2104" type="uint8">0</value>
+    <value name="FDR1_CTL_MAX" parameter="0x2105" type="uint8">127</value>
+    <value name="FDR1_PTCH_MIN" parameter="0x2106" type="uint16">-8192</value>
+    <value name="FDR1_PTCH_MAX" parameter="0x2107" type="uint16">8192</value>
 
-    <value name="FDR2_CH" parameter="0x20000201" type="uint8">3</value>
-    <value name="FDR2_MODE" parameter="0x20000202" type="uint8">CFG_MODE_PITCH</value>
-    <value name="FDR2_CTL" parameter="0x20000203" type="uint8">7</value>
-    <value name="FDR2_CTL_MIN" parameter="0x20000204" type="uint8">0</value>
-    <value name="FDR2_CTL_MAX" parameter="0x20000205" type="uint8">127</value>
-    <value name="FDR2_PTCH_MIN" parameter="0x20000206" type="uint16">-8192</value>
-    <value name="FDR2_PTCH_MAX" parameter="0x20000207" type="uint16">8192</value>
+    <value name="FDR2_CH" parameter="0x2201" type="uint8">3</value>
+    <value name="FDR2_MODE" parameter="0x2202" type="uint8">CFG_MODE_PITCH</value>
+    <value name="FDR2_CTL" parameter="0x2203" type="uint8">7</value>
+    <value name="FDR2_CTL_MIN" parameter="0x2204" type="uint8">0</value>
+    <value name="FDR2_CTL_MAX" parameter="0x2205" type="uint8">127</value>
+    <value name="FDR2_PTCH_MIN" parameter="0x2206" type="uint16">-8192</value>
+    <value name="FDR2_PTCH_MAX" parameter="0x2207" type="uint16">8192</value>
 
-    <value name="FDR3_CH" parameter="0x20000301" type="uint8">4</value>
-    <value name="FDR3_MODE" parameter="0x20000302" type="uint8">CFG_MODE_PITCH</value>
-    <value name="FDR3_CTL" parameter="0x20000303" type="uint8">7</value>
-    <value name="FDR3_CTL_MIN" parameter="0x20000304" type="uint8">0</value>
-    <value name="FDR3_CTL_MAX" parameter="0x20000305" type="uint8">127</value>
-    <value name="FDR3_PTCH_MIN" parameter="0x20000306" type="uint16">-8192</value>
-    <value name="FDR3_PTCH_MAX" parameter="0x20000307" type="uint16">8192</value>
+    <value name="FDR3_CH" parameter="0x2301" type="uint8">4</value>
+    <value name="FDR3_MODE" parameter="0x2302" type="uint8">CFG_MODE_PITCH</value>
+    <value name="FDR3_CTL" parameter="0x2303" type="uint8">7</value>
+    <value name="FDR3_CTL_MIN" parameter="0x2304" type="uint8">0</value>
+    <value name="FDR3_CTL_MAX" parameter="0x2305" type="uint8">127</value>
+    <value name="FDR3_PTCH_MIN" parameter="0x2306" type="uint16">-8192</value>
+    <value name="FDR3_PTCH_MAX" parameter="0x2307" type="uint16">8192</value>
 
-    <value name="FDR4_CH" parameter="0x20000401" type="uint8">5</value>
-    <value name="FDR4_MODE" parameter="0x20000402" type="uint8">CFG_MODE_PITCH</value>
-    <value name="FDR4_CTL" parameter="0x20000403" type="uint8">7</value>
-    <value name="FDR4_CTL_MIN" parameter="0x20000404" type="uint8">0</value>
-    <value name="FDR4_CTL_MAX" parameter="0x20000405" type="uint8">127</value>
-    <value name="FDR4_PTCH_MIN" parameter="0x20000406" type="uint16">-8192</value>
-    <value name="FDR4_PTCH_MAX" parameter="0x20000407" type="uint16">8192</value>
+    <value name="FDR4_CH" parameter="0x2401" type="uint8">5</value>
+    <value name="FDR4_MODE" parameter="0x2402" type="uint8">CFG_MODE_PITCH</value>
+    <value name="FDR4_CTL" parameter="0x2403" type="uint8">7</value>
+    <value name="FDR4_CTL_MIN" parameter="0x2404" type="uint8">0</value>
+    <value name="FDR4_CTL_MAX" parameter="0x2405" type="uint8">127</value>
+    <value name="FDR4_PTCH_MIN" parameter="0x2406" type="uint16">-8192</value>
+    <value name="FDR4_PTCH_MAX" parameter="0x2407" type="uint16">8192</value>
 
-    <value name="FDR5_CH" parameter="0x20000501" type="uint8">6</value>
-    <value name="FDR5_MODE" parameter="0x20000502" type="uint8">CFG_MODE_PITCH</value>
-    <value name="FDR5_CTL" parameter="0x20000503" type="uint8">7</value>
-    <value name="FDR5_CTL_MIN" parameter="0x20000504" type="uint8">0</value>
-    <value name="FDR5_CTL_MAX" parameter="0x20000505" type="uint8">127</value>
-    <value name="FDR5_PTCH_MIN" parameter="0x20000506" type="uint16">-8192</value>
-    <value name="FDR5_PTCH_MAX" parameter="0x20000507" type="uint16">8192</value>
+    <value name="FDR5_CH" parameter="0x2501" type="uint8">6</value>
+    <value name="FDR5_MODE" parameter="0x2502" type="uint8">CFG_MODE_PITCH</value>
+    <value name="FDR5_CTL" parameter="0x2503" type="uint8">7</value>
+    <value name="FDR5_CTL_MIN" parameter="0x2504" type="uint8">0</value>
+    <value name="FDR5_CTL_MAX" parameter="0x2505" type="uint8">127</value>
+    <value name="FDR5_PTCH_MIN" parameter="0x2506" type="uint16">-8192</value>
+    <value name="FDR5_PTCH_MAX" parameter="0x2507" type="uint16">8192</value>
 
-    <value name="FDR6_CH" parameter="0x20000601" type="uint8">7</value>
-    <value name="FDR6_MODE" parameter="0x20000602" type="uint8">CFG_MODE_PITCH</value>
-    <value name="FDR6_CTL" parameter="0x20000603" type="uint8">7</value>
-    <value name="FDR6_CTL_MIN" parameter="0x20000604" type="uint8">0</value>
-    <value name="FDR6_CTL_MAX" parameter="0x20000605" type="uint8">127</value>
-    <value name="FDR6_PTCH_MIN" parameter="0x20000606" type="uint16">-8192</value>
-    <value name="FDR6_PTCH_MAX" parameter="0x20000607" type="uint16">8192</value>
+    <value name="FDR6_CH" parameter="0x2601" type="uint8">7</value>
+    <value name="FDR6_MODE" parameter="0x2602" type="uint8">CFG_MODE_PITCH</value>
+    <value name="FDR6_CTL" parameter="0x2603" type="uint8">7</value>
+    <value name="FDR6_CTL_MIN" parameter="0x2604" type="uint8">0</value>
+    <value name="FDR6_CTL_MAX" parameter="0x2605" type="uint8">127</value>
+    <value name="FDR6_PTCH_MIN" parameter="0x2606" type="uint16">-8192</value>
+    <value name="FDR6_PTCH_MAX" parameter="0x2607" type="uint16">8192</value>
 
-    <value name="FDR7_CH" parameter="0x20000701" type="uint8">8</value>
-    <value name="FDR7_MODE" parameter="0x20000702" type="uint8">CFG_MODE_PITCH</value>
-    <value name="FDR7_CTL" parameter="0x20000703" type="uint8">7</value>
-    <value name="FDR7_CTL_MIN" parameter="0x20000704" type="uint8">0</value>
-    <value name="FDR7_CTL_MAX" parameter="0x20000705" type="uint8">127</value>
-    <value name="FDR7_PTCH_MIN" parameter="0x20000706" type="uint16">-8192</value>
-    <value name="FDR7_PTCH_MAX" parameter="0x20000707" type="uint16">8192</value>
+    <value name="FDR7_CH" parameter="0x2701" type="uint8">8</value>
+    <value name="FDR7_MODE" parameter="0x2702" type="uint8">CFG_MODE_PITCH</value>
+    <value name="FDR7_CTL" parameter="0x2703" type="uint8">7</value>
+    <value name="FDR7_CTL_MIN" parameter="0x2704" type="uint8">0</value>
+    <value name="FDR7_CTL_MAX" parameter="0x2705" type="uint8">127</value>
+    <value name="FDR7_PTCH_MIN" parameter="0x2706" type="uint16">-8192</value>
+    <value name="FDR7_PTCH_MAX" parameter="0x2707" type="uint16">8192</value>
 </storage>
 

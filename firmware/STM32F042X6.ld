@@ -47,7 +47,7 @@ ENTRY(Reset_Handler)
 
 _flash_origin = 0x08000000;
 _flash_length = 32K;
-_storage_size = 4K;
+_storage_size = 2K;
 
 MEMORY
 {
