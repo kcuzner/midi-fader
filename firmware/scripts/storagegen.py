@@ -121,7 +121,7 @@ class StorageValue(object):
         return "#define {} (0x{:X})".format(self.name, self.parameter);
 
     def to_source(self):
-        return """StoredValue _STORAGE parameter{0:X} = {{
+        return """static StoredValue _STORAGE parameter{0:X} = {{
     .parameter = 0x{0:X},
     .size = {1},
     .data = {{ {2} }}
