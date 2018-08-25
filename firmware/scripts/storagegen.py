@@ -1,0 +1,220 @@
+#!/usr/bin/env python3
+"""
+Compiles XML files into a C source file whose symbols live in the storage
+section
+"""
+
+import argparse, inspect, os, textwrap, sys
+from collections import namedtuple
+import xml.etree.ElementTree as ET
+
+FormatType = namedtuple('FormatType', ['type'])
+
+def formats(typestr):
+    """
+    Declares that this class can format the passed type string
+    """
+    def decorator(cls):
+        if not inspect.isclass(cls):
+            raise ValueError("The @formats decorator is only valid for classes")
+        attrname_format = '__formats{}'
+        index = 0
+        while hasattr(cls, attrname_format.format(index)):
+            index += 1
+        setattr(cls, attrname_format.format(index), FormatType(typestr))
+        return cls
+    return decorator
+
+class ValueFormatter(object):
+    @classmethod
+    def subclasses(cls):
+        all_cls = []
+        for c in cls.__subclasses__():
+            all_cls.append(c)
+            all_cls.extend(c.subclasses())
+        return all_cls
+
+    @classmethod
+    def match_typestr(cls, typestr):
+        """
+        Returns whether or not this formatter can handle the passed typestr
+        """
+        for attr_name in dir(cls):
+            attr = getattr(cls, attr_name)
+            if isinstance(attr, FormatType) and attr.type == typestr:
+                return True
+        return False
+
+    @classmethod
+    def get_formatter(cls, el):
+        handled = False
+        for c in cls.subclasses():
+            if c.match_typestr(el.attrib['type']):
+                handled = True
+                return c(el)
+        if not handled:
+            raise ValueError('No value formatter declared for type {}'.format(el.attrib['type']))
+
+    def __init__(self, size):
+        self.size = size
+
+    def to_source(self):
+        raise NotImplementedError
+
+class NumericFormatter(ValueFormatter):
+    """
+    Formats numeric data into to a byte array
+    """
+    def __init__(self, size, value):
+        self.value = value
+        super().__init__(size)
+
+    def to_source(self):
+        parts = list(['(((uint32_t)({}) >> {}) & 0xFF)'.format(self.value, i*8) for i in range(0, self.size)])
+        if len(parts):
+            return ', '.join(parts)
+        return ''
+
+@formats('uint8')
+class ByteFormatter(NumericFormatter):
+    def __init__(self, el):
+        if not el.text:
+            raise ValueError('The uint8 formatter requires non-empty element text')
+        super().__init__(1, el.text)
+
+@formats('uint16')
+class WordFormatter(NumericFormatter):
+    def __init__(self, el):
+        if not el.text:
+            raise ValueError('The uint16 formatter requires non-empty element text')
+        super().__init__(2, el.text)
+
+@formats('uint32')
+class LongFormatter(NumericFormatter):
+    def __init__(self, el):
+        if not el.text:
+            raise ValueError('The uint32 formatter requires non-empty element text')
+        super().__init__(4, el.text)
+
+@formats('utf8')
+class StringFormatter(ValueFormatter):
+    """
+    Formats string content into a utf8 array
+    """
+    def __init__(self, el):
+        if not el.text:
+            raise ValueError('The utf8 formatter requires non-empty element text')
+        self.bytes = el.text.encode('utf-8')
+        super().__init__(len(self.bytes))
+
+    def to_source(self):
+        return ', '.join(["'{}'".format(chr(b)) if b < 128 else "0x{:02X}".format(b)
+            for b in self.bytes])
+
+class StorageValue(object):
+    def __init__(self, el):
+        self.name = el.attrib['name']
+        self.parameter = int(el.attrib['parameter'], 0)
+        self.formatter = ValueFormatter.get_formatter(el)
+
+    def to_header(self):
+        return "#define {} (0x{:X})".format(self.name, self.parameter);
+
+    def to_source(self):
+        return """StoredValue _STORAGE parameter{0:X} = {{
+    .parameter = 0x{0:X},
+    .size = {1},
+    .data = {{ {2} }}
+}};""".format(self.parameter, self.formatter.size, self.formatter.to_source())
+
+class ValueCollection(object):
+    def __init__(self):
+        self.values = []
+        self.includes = []
+        self.parameters = set()
+    
+    def parse_values(self, el, filename):
+        if 'include' in el.attrib:
+            self.includes.append(el.attrib['include'])
+        for e in el:
+            if e.tag != 'value':
+                raise ValueError('Unexpected element in {}: {}'.format(filename, el.tag))
+            value = StorageValue(e)
+            self.values.append(value)
+            if value.parameter in self.parameters:
+                raise ValueError('Duplicate parameter 0x{:X} in {}'.format(value.parameter, filename))
+            self.parameters.add(value.parameter)
+
+    def to_header(self):
+        headers = os.linesep.join([v.to_header() for v in self.values])
+        return """#ifndef _STORAGE_AUTOGEN_H_
+#define _STORAGE_AUTOGEN_H_
+
+/******************************************************************************
+ * AUTOGENERATED FILE
+ *
+ * DO NOT MODIFY!
+ *
+ * Invocation:
+ * {}
+ *****************************************************************************/
+
+{}
+
+#endif //_STORAGE_AUTOGEN_H_
+ """.format(' '.join(sys.argv), headers)
+
+    def to_source(self, section):
+        includes = os.linesep.join(['#include "{}"'.format(i) for i in self.includes])
+        definitions = os.linesep.join([v.to_source() for v in self.values])
+        return """
+/******************************************************************************
+ * AUTOGENERATED FILE
+ *
+ * DO NOT MODIFY!
+ *
+ * Invocation:
+ * {0}
+ *****************************************************************************/
+
+{1}
+
+#include "storage.h"
+
+#define STORAGE_SECTION "{2}"
+#define _STORAGE __attribute__((section (STORAGE_SECTION), used, aligned(4)))
+
+{3}""".format(' '.join(sys.argv), includes, section, definitions)
+
+def write_if_different(content, filename):
+    if os.path.exists(filename):
+        with open(filename) as f:
+            old_content = f.read()
+    else:
+        old_content = ''
+    if old_content != content:
+        with open(filename, 'w') as f:
+            f.write(content)
+def main():
+    parser = argparse.ArgumentParser(description='Parses storage defaults into a C file',
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            epilog=textwrap.dedent(__doc__))
+    parser.add_argument('files', metavar='FILE', nargs='+', help='Files to parse')
+    parser.add_argument('-os', '--output-src', help='Output source filename', required=True)
+    parser.add_argument('-oh', '--output-header', help='Output header filename', required=True)
+    parser.add_argument('--section', default='.storage', help='Section name for variables')
+
+    args = parser.parse_args()
+    collection = ValueCollection()
+    for f in args.files:
+        root = ET.parse(f).getroot()
+        if root.tag != 'storage':
+            raise ValueError('Unexpected root element in {}'.format(f))
+        collection.parse_values(root, f)
+
+    write_if_different(collection.to_source(args.section), args.output_src)
+    write_if_different(collection.to_header(), args.output_header)
+
+if __name__ == '__main__':
+    main()
+

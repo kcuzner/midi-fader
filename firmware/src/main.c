@@ -11,6 +11,7 @@
 #include "usb_hid.h"
 #include "usb_midi.h"
 #include "osc.h"
+#include "storage.h"
 
 #include "_gen_usb_desc.h"
 
@@ -99,6 +100,8 @@ int main()
         64,
     };
 
+    uint8_t buf[16];
+
     while (1)
     {
         for (uint32_t i = 0; i < 0xFFF; i++) { }
@@ -107,6 +110,7 @@ int main()
         control[2] &= 0x7F;
 
         usb_midi_send(MIDI_CTRL, control, sizeof(control));
+        storage_read(0x8000001, buf, sizeof(buf));
     }
 
     return 0;
