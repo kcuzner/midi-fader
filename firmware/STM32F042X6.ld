@@ -138,6 +138,11 @@ SECTIONS
         _sstorage = .;
         KEEP(*(.storage))
         KEEP(*(.storage*))
+        . = _sstorage + _storage_size / 2;
+        FILL(0xFF)
+        _mstorage = .;
+        . = _sstorage + _storage_size;
+        _estorage = .;
     } > FLASH_STORAGE
 
     /* Zeroed data */

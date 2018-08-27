@@ -11,9 +11,11 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
-#define INVALID_PARAMETER 0x00000000
-#define INVALID_SIZE 0xFFFFFFFF
+#define STORAGE_INVALID_PARAMETER 0x0000
+#define STORAGE_ERASED_PARAMETER 0xFFFF
+#define STORAGE_INVALID_SIZE 0xFFFF
 
 /**
  * Structure used by the storage generator to store data
@@ -22,27 +24,30 @@ typedef struct StoredValue {
     uint16_t parameter;
     uint16_t size;
     uint8_t data[];
-} StoredValue;
+} __attribute__((packed)) StoredValue;
 
 /**
- * Reads a parameter from the storage area
+ * Reads a parameter from the storage area.
  *
  * parameter: Parameter identifier
  * buf: Buffer in which to place the data
- * len: Length of the buffer in bytes
+ * len: Length of the buffer in bytes, replaced with the actual read
+ * length
  *
- * Returns actual size of the read parameter
+ * Returns if a complete stored value was read
  */
-size_t storage_read(uint16_t parameter, void *buf, size_t len);
+bool storage_read(uint16_t parameter, void *buf, size_t *len);
 
 /**
- * Writes a parameter into the storage area
+ * Writes a parameter into the storage area.
  *
- * paramter: Parameter identifier
+ * parameter: Parameter identifier
  * buf: Buffer from which to read the data
  * len: Length of the data
+ *
+ * Returns whether or not the write was successful
  */
-void storage_write(uint16_t parameter, void *buf, size_t *len);
+bool storage_write(uint16_t parameter, void *buf, size_t len);
 
 #endif //_STORAGE_H_
 

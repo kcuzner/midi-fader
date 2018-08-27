@@ -110,7 +110,8 @@ int main()
         control[2] &= 0x7F;
 
         usb_midi_send(MIDI_CTRL, control, sizeof(control));
-        storage_read(0x8000001, buf, sizeof(buf));
+        size_t len = sizeof(buf);
+        storage_read(0x8001, buf, &len);
     }
 
     return 0;
