@@ -135,13 +135,17 @@ SECTIONS
     .storage :
     {
         . = ALIGN(4);
-        _sstorage = .;
+        _storagea_magic = .;
+        KEEP(*(.storage.magic))
+        . = _storagea_magic + 4;
+        _sstoragea = .;
         KEEP(*(.storage))
-        KEEP(*(.storage*))
-        . = _sstorage + _storage_size / 2;
+        . = _storagea_magic + _storage_size / 2;
+        _storageb_magic = .;
         FILL(0xFF)
-        _mstorage = .;
-        . = _sstorage + _storage_size;
+        . = _storageb_magic + 4;
+        _sstorageb = .;
+        . = _storagea_magic + _storage_size;
         _estorage = .;
     } > FLASH_STORAGE
 

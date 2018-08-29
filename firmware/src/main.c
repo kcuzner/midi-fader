@@ -82,6 +82,7 @@ const USBApplicationSetup setup = {
 
 const USBApplicationSetup *usb_app_setup = &setup;
 
+uint8_t buf[16];
 int main()
 {
     osc_request_hsi8();
@@ -100,7 +101,6 @@ int main()
         64,
     };
 
-    uint8_t buf[16];
 
     while (1)
     {

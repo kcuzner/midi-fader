@@ -29,6 +29,8 @@ typedef struct StoredValue {
 /**
  * Reads a parameter from the storage area.
  *
+ * This must be called with interrupts disabled!
+ *
  * parameter: Parameter identifier
  * buf: Buffer in which to place the data
  * len: Length of the buffer in bytes, replaced with the actual read
@@ -40,6 +42,8 @@ bool storage_read(uint16_t parameter, void *buf, size_t *len);
 
 /**
  * Writes a parameter into the storage area.
+ *
+ * This must be called with interrupts disabled!
  *
  * parameter: Parameter identifier
  * buf: Buffer from which to read the data

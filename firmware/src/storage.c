@@ -7,6 +7,7 @@
  */
 
 #include "storage.h"
+#include "_gen_storage.h"
 
 #include "stm32f0xx.h"
 
@@ -50,16 +51,29 @@
 #define _RAM __attribute__((section (".data#"), noinline))
 
 /**
+ * This contains constants that indicate the state of the storage "a"
+ * segment. When it is 0xFFFF the storage has been erased and can be
+ * used for a migration. When it is STORAGE_SECTION_START_MAGIC, this
+ * section is currently in use.
+ */
+extern uint16_t _storagea_magic;
+
+/**
  * This symbol is defined by the linker script at the beginning of the
  * storage section. We pretend that it contains a StoredValue struct.
  */
-extern StoredValue _sstorage;
+extern StoredValue _sstoragea;
+
+/**
+ * Same purpose as the storagea_magic variable, but for the B segment.
+ */
+extern uint16_t _storageb_magic;
 
 /**
  * This symbols id defined by the linker script in the middle of the
  * storage section.
  */
-extern StoredValue _mstorage;
+extern StoredValue _sstorageb;
 
 /**
  * This symbol is defined by the linker script at the end of the storage
@@ -70,15 +84,26 @@ extern StoredValue _estorage;
 
 /**
  * Locates the start and end of the current segment
+ *
+ * If a valid storage segment cannot be found, both values are set to
+ * zero or null.
  */
-static void storage_get_start_end(StoredValue **start, StoredValue **end)
+static void storage_get_start_end(StoredValue **start, uintptr_t *end)
 {
-    *start = &_sstorage;
-    *end = &_mstorage;
-    if ((*start)->parameter == STORAGE_ERASED_PARAMETER)
+    if (_storagea_magic == STORAGE_SECTION_START_MAGIC)
     {
-        *start = &_mstorage;
-        *end = &_estorage;
+        *start = &_sstoragea;
+        *end = (uintptr_t)(&_storageb_magic) - 1;
+    }
+    else if (_storageb_magic == STORAGE_SECTION_START_MAGIC)
+    {
+        *start = &_sstorageb;
+        *end = (uintptr_t)&_estorage;
+    }
+    else
+    {
+        *start = NULL;
+        *end = 0;
     }
 }
 
@@ -116,20 +141,19 @@ static StoredValue* storage_get_next_stored(StoredValue *current)
  */
 static StoredValue *storage_find(uint16_t parameter)
 {
-    StoredValue *current, *end;
+    StoredValue *current;
+    uintptr_t end;
     storage_get_start_end(&current, &end);
 
-    if (current->parameter == STORAGE_ERASED_PARAMETER)
-    {
-        current = &_mstorage;
-        end = &_estorage;
-    }
+    // If we don't have valid storage segment, we're done
+    if (!current || !end)
+        return NULL;
 
     // Walk the storage, locating the parameter
     //
     // If the parameter is erased, then we cannot trust any bytes after
     // it and we are done walking.
-    while (current < end && 
+    while ((uintptr_t)current < end &&
             (parameter != STORAGE_INVALID_PARAMETER && current->parameter != parameter) &&
             current->parameter != STORAGE_ERASED_PARAMETER)
     {
@@ -137,7 +161,7 @@ static StoredValue *storage_find(uint16_t parameter)
         current = storage_get_next_stored(current);
     }
 
-    if (current >= end || (parameter != STORAGE_INVALID_PARAMETER &&
+    if ((uintptr_t)current >= end || (parameter != STORAGE_INVALID_PARAMETER &&
                 current->parameter == STORAGE_ERASED_PARAMETER))
     {
         return NULL;
@@ -226,11 +250,9 @@ static _RAM bool storage_flash_do_write(uint16_t *addr, uint16_t data)
 static bool storage_flash_write(uint16_t *addr, uint16_t data)
 {
     bool result = false;
-    __disable_irq();
     storage_unlock_flash();
     result = storage_flash_do_write(addr, data);
     storage_lock();
-    __enable_irq();
     return result;
 }
 
@@ -268,11 +290,9 @@ static _RAM bool storage_flash_do_erase_page(uint16_t *pageaddr)
 static bool storage_flash_erase_page(uint16_t *pageaddr)
 {
     bool result = false;
-    __disable_irq();
     storage_unlock_flash();
     result = storage_flash_do_erase_page(pageaddr);
     storage_lock();
-    __enable_irq();
     return result;
 }
 
@@ -304,19 +324,27 @@ static bool storage_flash_write_stored_value(StoredValue *location, uint16_t par
  */
 static bool storage_migrate()
 {
-    StoredValue *src, *end;
+    StoredValue *src;
+    uintptr_t end;
     storage_get_start_end(&src, &end);
 
-    //double check our preconditions are met
-    if (src != &_sstorage && src != &_mstorage)
+    //If there isn't a current section, we can't migrate anything
+    if (!src || !end)
         return false;
 
     //Determine the destination page
-    StoredValue *dest = src == &_sstorage ? &_mstorage : &_sstorage;
+    StoredValue *dest = src == &_sstoragea ? &_sstorageb : &_sstoragea;
+    uint16_t *magicsrc = src == &_sstoragea ? &_storagea_magic : &_storageb_magic;
+    uint16_t *magicdest = src == &_sstoragea ? &_storageb_magic : &_storagea_magic;
+
+    //validate that the destination is not active
+    //TODO: Do we want to actually check if its erased instead?
+    if (*magicdest == STORAGE_SECTION_START_MAGIC)
+        return false;
 
     // Iterate the source and write all valid parameters to the
     // destination
-    while (src < end && src->parameter != STORAGE_ERASED_PARAMETER &&
+    while ((uintptr_t)src < end && src->parameter != STORAGE_ERASED_PARAMETER &&
             src->size != STORAGE_INVALID_SIZE)
     {
         if (src->parameter == STORAGE_INVALID_PARAMETER)
@@ -325,11 +353,6 @@ static bool storage_migrate()
         }
         else
         {
-            //possible problem: What if the write fails here? We won't
-            //be able to tell which segment we're in...maybe we need
-            //some kind of preamble at the beginning of the section that
-            //indicates it is active?
-            //
             //write this to destination
             if (!storage_flash_write_stored_value(dest, src->parameter, src->size,
                         src->data))
@@ -338,15 +361,19 @@ static bool storage_migrate()
         }
     }
 
-    //TODO: Write a magic number to indicate the section is good
-    
-    storage_flash_erase_page(&src->parameter);
+    // This section is now fully migrated and is good
+    if (!storage_flash_write(magicdest, STORAGE_SECTION_START_MAGIC))
+        return false;
+
+    // any pointer within the page will erase the entire page
+    storage_flash_erase_page(magicsrc);
     return true;
 }
 
 bool storage_write(uint16_t parameter, void *buf, size_t len)
 {
-    StoredValue *start, *end;
+    StoredValue *start;
+    uintptr_t end;
 
     // Important note: There are several cases here that result in a
     // corrupted storage segment. I'm really not sure what to do about
@@ -354,6 +381,8 @@ bool storage_write(uint16_t parameter, void *buf, size_t len)
     // very well. Basically, a write could be very fragile.
 
     storage_get_start_end(&start, &end);
+    if (!start || !end)
+        return false;
 
     StoredValue *current = storage_find(parameter);
     if (current == NULL)
@@ -369,7 +398,7 @@ bool storage_write(uint16_t parameter, void *buf, size_t len)
     uintptr_t endaddr = storage_get_next_stored_address((uintptr_t)next, len);
 
     // Perform a migration if necessary
-    if (next >= end || (StoredValue*)endaddr >= end)
+    if ((uintptr_t)next > end || endaddr > end)
     {
         //we have reached the end of the segment. Migrate to the other
         //segment.
@@ -387,7 +416,7 @@ bool storage_write(uint16_t parameter, void *buf, size_t len)
         //locate the next free spot
         next = storage_find(STORAGE_INVALID_PARAMETER);
         endaddr = storage_get_next_stored_address((uintptr_t)next, len);
-        if (next >= end || (StoredValue*)endaddr >= end)
+        if ((uintptr_t)next > end || endaddr > end)
             return false; //there is no space large enough to hold this after consolidation
     }
 

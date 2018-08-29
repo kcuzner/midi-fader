@@ -118,7 +118,7 @@ class StorageValue(object):
         self.formatter = ValueFormatter.get_formatter(el)
 
     def to_header(self):
-        return "#define {} (0x{:X})".format(self.name, self.parameter);
+        return "#define STORAGE_{} (0x{:X})".format(self.name, self.parameter);
 
     def to_source(self):
         return """static StoredValue _STORAGE parameter{0:X} = {{
@@ -159,6 +159,8 @@ class ValueCollection(object):
  * {}
  *****************************************************************************/
 
+#define STORAGE_SECTION_START_MAGIC 0xABCD
+
 {}
 
 #endif //_STORAGE_AUTOGEN_H_
@@ -183,6 +185,11 @@ class ValueCollection(object):
 
 #define STORAGE_SECTION "{2}"
 #define _STORAGE __attribute__((section (STORAGE_SECTION), used, aligned(4)))
+
+#define STORAGE_MAGIC_SECTION "{2}.magic"
+#define _STORAGE_MAGIC __attribute__((section (STORAGE_MAGIC_SECTION), used, aligned(4)))
+
+static uint16_t _STORAGE_MAGIC storageMagic = 0xABCD;
 
 {3}""".format(' '.join(sys.argv), includes, section, definitions)
 
