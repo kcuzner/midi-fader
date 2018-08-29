@@ -1,0 +1,153 @@
+#!/usr/bin/env python3
+"""
+Configures an attached USB Midi-Fader device
+
+This uses raw parameter numbers and values. It is mainly intended as a test
+interface
+"""
+
+import hid
+import struct, time, argparse, textwrap
+
+VID = 0x16c0
+PID = 0x05dc
+
+class Command(object):
+    """
+    Basic command structure: 4 bytes of command followed by up to 60 bytes of data
+    """
+    def __init__(self, command, data_bytes):
+        self.command = command
+        self.data_bytes = data_bytes
+
+    def pack(self):
+        return struct.pack('<I60s', self.command, self.data_bytes)
+
+class GetCommand(Command):
+    """
+    Command to get a parameter
+    """
+    def __init__(self, parameter):
+        super().__init__(0x40, struct.pack('<IIII', 0, parameter, 0, 0))
+
+class SetCommand(Command):
+    """
+    Command to set a parameter
+    """
+    def __init__(self, parameter, value, size):
+        super().__init__(0x80, struct.pack('<IIII', 0, parameter, value, size))
+
+class Response(object):
+    """
+    Basic response structure: 4 bytes of command followed by up to 60 bytes of data
+    """
+    def __init__(self, data_bytes):
+        unpacked = struct.unpack('<I60s', bytes(data_bytes))
+        self.command = unpacked[0]
+        self.bytes = unpacked[1]
+        self.parameters = struct.unpack('<15I', self.bytes)
+
+    @property
+    def status(self):
+        return self.parameters[0]
+
+class GetCommandResponse(Response):
+    @property
+    def value(self):
+        return self.parameters[2]
+
+    @property
+    def size(self):
+        return self.parameters[3]
+
+class Device(hid.device):
+    MANUFACTURER='kevincuzner.com'
+    PRODUCT='Midi-Fader'
+    def __init__(self, path):
+        self.path = path
+
+    def __enter__(self):
+        self.open_path(self.path)
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+    def get_parameter(self, parameter):
+        cmd = GetCommand(parameter)
+        return GetCommandResponse(self.write_command(cmd))
+
+    def set_parameter(self, parameter, value, size):
+        cmd = SetCommand(parameter, value, size)
+        return Response(self.write_command(cmd))
+
+    def write_command(self, command):
+        data = b'\x00' + command.pack() #prepend a zero since we don't use REPORT_ID
+        result = self.write(data)
+        if result < 0:
+            raise ValueError(self.error())
+        response = self.read(64)
+        if len(response):
+            return response
+
+
+def find_device(cls=Device):
+    info = hid.enumerate(VID, PID)
+    for i in info:
+        if i['manufacturer_string'] == cls.MANUFACTURER and\
+                i['product_string'] == cls.PRODUCT:
+            return cls(i['path'])
+    return None
+
+
+def parsed_int(v):
+    """
+    Used as the type for parameters which accept hex integers
+    """
+    return int(v, 0)
+
+class DeviceNotFoundError(Exception):
+    pass
+
+class NoResponseError(Exception):
+    pass
+
+def main():
+    parser = argparse.ArgumentParser(description='Configures attached USB Midi-Fader devices',
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            epilog=textwrap.dedent(__doc__))
+    subparsers = parser.add_subparsers(help='Command type to execute', dest='command')
+    subparsers.required = True
+    getter = subparsers.add_parser('get', help='Gets a parameter value')
+    getter.add_argument('param', type=parsed_int, help='Parameter number to get')
+    setter = subparsers.add_parser('set', help='Sets a parameter value')
+    setter.add_argument('param', type=parsed_int, help='Parameter number to set')
+    setter.add_argument('value', type=parsed_int, help='Parameter value')
+
+    args = parser.parse_args()
+    dev = find_device()
+    if dev is None:
+        raise DeviceNotFoundError
+    with dev:
+        if args.command == 'get':
+            res = dev.get_parameter(args.param)
+            if res is None:
+                raise NoResponseError
+            print("Command: {}, Result: {}, Value: {}".format(res.command, res.status, res.value))
+        elif args.command == 'set':
+            res = dev.get_parameter(args.param)
+            if res is None:
+                raise NoResponseError
+            print("Command: {}, Result: {}".format(res.command, res.status))
+            print("Derived size: {}".format(res.size))
+            res = dev.set_parameter(args.param, args.value, res.size)
+            if res is None:
+                raise NoResponseError
+            print("Command: {}, Result: {}".format(res.command, res.status))
+        else:
+            raise NotImplementedError
+
+
+if __name__ == '__main__':
+    main()
+

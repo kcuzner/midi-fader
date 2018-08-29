@@ -51,7 +51,7 @@ bool storage_read(uint16_t parameter, void *buf, size_t *len);
  *
  * Returns whether or not the write was successful
  */
-bool storage_write(uint16_t parameter, void *buf, size_t len);
+bool storage_write(uint16_t parameter, const void *buf, size_t len);
 
 #endif //_STORAGE_H_
 

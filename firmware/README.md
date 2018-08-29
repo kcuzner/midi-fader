@@ -100,6 +100,7 @@ The Set Parameter command has the following format:
  - Parameter 0 (IN): Status (0 = success, error code otherwise)
  - Parameter 1 (OUT): Parameter number
  - Parameter 2 (OUT): Parameter value
+ - Parameter 3 (OUT): Parameter size in bytes
 
 #### Get Parameter
 
@@ -109,4 +110,5 @@ The Get Parameter command has the following format:
  - Parameter 0 (IN): Status (0 = success, error code otherwise)
  - Parameter 1 (OUT): Parameter number
  - Parameter 2 (IN): Parameter value
+ - Parameter 3 (IN): Parameter size in bytes
 

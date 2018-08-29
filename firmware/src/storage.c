@@ -297,7 +297,7 @@ static bool storage_flash_erase_page(uint16_t *pageaddr)
 }
 
 static bool storage_flash_write_stored_value(StoredValue *location, uint16_t parameter,
-        uint16_t len, void *buf)
+        uint16_t len, const void *buf)
 {
     uint8_t *bytes = (uint8_t *)buf;
     for (size_t idx = 0; idx < len; idx += 2)
@@ -370,7 +370,7 @@ static bool storage_migrate()
     return true;
 }
 
-bool storage_write(uint16_t parameter, void *buf, size_t len)
+bool storage_write(uint16_t parameter, const void *buf, size_t len)
 {
     StoredValue *start;
     uintptr_t end;
