@@ -16,7 +16,7 @@ line.
 
 """
 
-import argparse, textwrap, logging, os, inspect, traceback, random, string, sys
+import argparse, textwrap, logging, os, inspect, traceback, random, string, sys, re
 from itertools import chain
 from collections import namedtuple, OrderedDict
 import xml.etree.ElementTree as ET
@@ -699,6 +699,9 @@ def extract_elements(fragment, fname=None):
 
     Returns an interable
     """
+    if not re.search('<descriptor.+>', fragment, re.MULTILINE):
+        fragment = ''
+
     try:
         return ET.fromstring('<root>' + fragment + '</root>')
     except ET.ParseError as e:
