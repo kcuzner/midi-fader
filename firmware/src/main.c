@@ -11,6 +11,8 @@
 #include "usb_hid.h"
 #include "usb_midi.h"
 #include "osc.h"
+#include "error.h"
+#include "storage.h"
 
 #include "_gen_usb_desc.h"
 
@@ -81,8 +83,11 @@ const USBApplicationSetup setup = {
 
 const USBApplicationSetup *usb_app_setup = &setup;
 
+uint8_t buf[16];
 int main()
 {
+    ERROR_INST(err);
+
     osc_request_hsi8();
 
     usb_init();
@@ -99,6 +104,7 @@ int main()
         64,
     };
 
+
     while (1)
     {
         for (uint32_t i = 0; i < 0xFFF; i++) { }
@@ -107,6 +113,8 @@ int main()
         control[2] &= 0x7F;
 
         usb_midi_send(MIDI_CTRL, control, sizeof(control));
+        size_t len = sizeof(buf);
+        storage_read(0x8001, buf, &len, ERROR_FROM_INST(err));
     }
 
     return 0;

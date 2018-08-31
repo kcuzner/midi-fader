@@ -21,9 +21,10 @@ INCDIRS = include cmsis/include
 CPU = cortex-m0
 
 # Sources
-GENERATE = USB_DESCRIPTOR
+GENERATE = USB_DESCRIPTOR STORAGE
 SRC = $(foreach DIR,$(SRCDIRS),$(wildcard $(DIR)/*.c))
 GENSRC = $(foreach DIR,$(GENSRCDIRS),$(wildcard $(DIR)/*.c))
+STORAGESRC = $(foreach DIR,$(SRCDIRS),$(wildcard $(DIR)/*.storage.xml))
 ASM = $(foreach DIR,$(SRCDIRS),$(wildcard $(DIR)/*.s))
 
 # Include directories
@@ -56,6 +57,8 @@ OCD = openocd
 # Code Generation
 PYTHON = python3
 DESCRIPTORGEN = $(PYTHON) ./scripts/descriptorgen.py
+STORAGEGEN_SCRIPT = ./scripts/storagegen.py
+STORAGEGEN = $(PYTHON) $(STORAGEGEN_SCRIPT)
 
 RM = rm -rf
 
@@ -67,10 +70,19 @@ GENERATE_USB_DESCRIPTOR=USB_DESCRIPTOR
 GENERATE_USB_DESCRIPTOR_SRC=_gen_usb_desc.c
 GENERATE_USB_DESCRIPTOR_HDR=_gen_usb_desc.h
 
+GENERATE_STORAGE=STORAGE
+GENERATE_STORAGE_SRC=_gen_storage.c
+GENERATE_STORAGE_HDR=_gen_storage.h
+
 OBJ := $(addprefix $(OBJDIR)/,$(notdir $(SRC:.c=.o)))
 OBJ += $(addprefix $(OBJDIR)/,$(notdir $(ASM:.s=.o)))
 ifneq ($(filter $(GENERATE), $(GENERATE_USB_DESCRIPTOR)),)
 	GEN_OBJ += $(GENDIR)/$(GENERATE_USB_DESCRIPTOR_SRC:.c=.o)
+	GEN_TARGETS += $(GENERATE_USB_DESCRIPTOR)
+endif
+ifneq ($(filter $(GENERATE), $(GENERATE_STORAGE)),)
+	GEN_OBJ += $(GENDIR)/$(GENERATE_STORAGE_SRC:.c=.o)
+	GEN_TARGETS += $(GENDIR)/$(GENERATE_STORAGE_SRC:.c=.o)
 endif
 ALL_OBJ := $(OBJ) $(GEN_OBJ)
 DEP := $(addprefix $(OBJDIR)/,$(notdir $(SRC:.c=.d)))
@@ -116,6 +128,12 @@ $(GENERATE_USB_DESCRIPTOR):
 		-oh $(GENDIR)/$(GENERATE_USB_DESCRIPTOR_HDR) \
 		$(GENSRC)
 
+$(GENDIR)/$(GENERATE_STORAGE_SRC): $(STORAGESRC) $(STORAGEGEN_SCRIPT)
+	@mkdir -p $(GENDIR)
+	$(STORAGEGEN) -os $(GENDIR)/$(GENERATE_STORAGE_SRC) \
+		-oh $(GENDIR)/$(GENERATE_STORAGE_HDR) \
+		$<
+
 #
 # Compilation
 #
@@ -153,5 +171,5 @@ $(foreach DIR,$(SRCDIRS),$(eval $(call build_compile_rules,$(DIR))))
 -include $(DEP)
 
 # Ensure generated objects get run first
-$(OBJ): | $(GENERATE)
+$(OBJ): | $(GEN_TARGETS)
 

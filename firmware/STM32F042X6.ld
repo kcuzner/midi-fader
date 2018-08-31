@@ -45,9 +45,14 @@ ENTRY(Reset_Handler)
  * Direct usage of symbols allocated in the PMA may cause unexpected behavior.
  */
 
+_flash_origin = 0x08000000;
+_flash_length = 32K;
+_storage_size = 2K;
+
 MEMORY
 {
-    FLASH (RX) : ORIGIN = 0x08000000, LENGTH = 32K
+    FLASH (RX) : ORIGIN = _flash_origin, LENGTH = _flash_length - _storage_size
+    FLASH_STORAGE (RX) : ORIGIN = (_flash_origin + _flash_length) - _storage_size, LENGTH = _flash_length
     RAM (W!RX)  : ORIGIN = 0x20000000, LENGTH = 6K
     PMA (W)  : ORIGIN = 0x40006000, LENGTH = 1024 /* 512 x 16bit */
 }
@@ -125,6 +130,25 @@ SECTIONS
         . = ALIGN(4);
         _edata = .; /* End of data in RAM */
     } > RAM AT > FLASH
+
+    /* Storage located at the end of flash */
+    .storage :
+    {
+        . = ALIGN(4);
+        _storagea_magic = .;
+        KEEP(*(.storage.magic))
+        . = _storagea_magic + 4;
+        _sstoragea = .;
+        KEEP(*(.storage))
+        FILL(0xFF)
+        . = _storagea_magic + _storage_size / 2;
+        _storageb_magic = .;
+        FILL(0xFF)
+        . = _storageb_magic + 4;
+        _sstorageb = .;
+        . = _storagea_magic + _storage_size;
+        _estorage = .;
+    } > FLASH_STORAGE
 
     /* Zeroed data */
     . = ALIGN(4);
