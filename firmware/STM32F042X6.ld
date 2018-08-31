@@ -140,6 +140,7 @@ SECTIONS
         . = _storagea_magic + 4;
         _sstoragea = .;
         KEEP(*(.storage))
+        FILL(0xFF)
         . = _storagea_magic + _storage_size / 2;
         _storageb_magic = .;
         FILL(0xFF)

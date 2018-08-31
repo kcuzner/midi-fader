@@ -49,12 +49,14 @@ static void configuration_begin_request(void)
 static void configuration_get_param_response(const HIDBuffer *request,
         HIDBuffer *response)
 {
+    ERROR_INST(err);
     uint32_t value = 0;
 
     // get the parameter
     size_t len = sizeof(value);
     __disable_irq();
-    response->parameters[0] = !storage_read(request->parameters[1], &value, &len);
+    storage_read(request->parameters[1], &value, &len, ERROR_FROM_INST(err));
+    response->parameters[0] = err;
     __enable_irq();
 
     response->parameters[1] = request->parameters[1];
@@ -65,6 +67,7 @@ static void configuration_get_param_response(const HIDBuffer *request,
 static void configuration_set_param_response(const HIDBuffer *request,
         HIDBuffer *response)
 {
+    ERROR_INST(err);
 
     //sanitize the length
     size_t len = request->parameters[3];
@@ -72,8 +75,8 @@ static void configuration_set_param_response(const HIDBuffer *request,
         len = sizeof(request->parameters[2]);
 
     __disable_irq();
-    response->parameters[0] = !storage_write(request->parameters[1],
-            &request->parameters[2], len);
+    storage_write(request->parameters[1], &request->parameters[2], len, ERROR_FROM_INST(err));
+    response->parameters[0] = err;
     __enable_irq();
 }
 

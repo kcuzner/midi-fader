@@ -7,7 +7,7 @@ interface
 """
 
 import hid
-import struct, time, argparse, textwrap
+import struct, time, argparse, textwrap, ctypes
 
 VID = 0x16c0
 PID = 0x05dc
@@ -45,7 +45,7 @@ class Response(object):
         unpacked = struct.unpack('<I60s', bytes(data_bytes))
         self.command = unpacked[0]
         self.bytes = unpacked[1]
-        self.parameters = struct.unpack('<15I', self.bytes)
+        self.parameters = struct.unpack('<15i', self.bytes)
 
     @property
     def status(self):

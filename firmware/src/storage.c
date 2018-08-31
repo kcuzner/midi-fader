@@ -88,8 +88,11 @@ extern StoredValue _estorage;
  * If a valid storage segment cannot be found, both values are set to
  * zero or null.
  */
-static void storage_get_start_end(StoredValue **start, uintptr_t *end)
+static void storage_get_start_end(StoredValue **start, uintptr_t *end, Error err)
 {
+    if (ERROR_IS_FATAL(err))
+        return;
+
     if (_storagea_magic == STORAGE_SECTION_START_MAGIC)
     {
         *start = &_sstoragea;
@@ -102,8 +105,7 @@ static void storage_get_start_end(StoredValue **start, uintptr_t *end)
     }
     else
     {
-        *start = NULL;
-        *end = 0;
+        ERROR_SET(err, STORAGE_ERR_NO_STORAGE);
     }
 }
 
@@ -135,34 +137,36 @@ static StoredValue* storage_get_next_stored(StoredValue *current)
  * parameter: Parameter to find
  *
  * Returns NULL if the parameter was not found, otherwise it returns a
- * pointer to the const data. If the passed parameter is
- * STORAGE_INVALID_PARAMETER, this only returns null if we've gone
- * beyond the boundaries of the segment.
+ * pointer to the const data.
+ *
+ * This does not set STORAGE_ERR_NOT_FOUND
  */
-static StoredValue *storage_find(uint16_t parameter)
+static StoredValue *storage_find(uint16_t parameter, Error err)
 {
     StoredValue *current;
     uintptr_t end;
-    storage_get_start_end(&current, &end);
+
+    if (ERROR_IS_FATAL(err))
+        return NULL;
+
+    storage_get_start_end(&current, &end, err);
 
     // If we don't have valid storage segment, we're done
-    if (!current || !end)
+    if (ERROR_IS_FATAL(err))
         return NULL;
 
     // Walk the storage, locating the parameter
     //
     // If the parameter is erased, then we cannot trust any bytes after
     // it and we are done walking.
-    while ((uintptr_t)current < end &&
-            (parameter != STORAGE_INVALID_PARAMETER && current->parameter != parameter) &&
+    while ((uintptr_t)current < end && current->parameter != parameter &&
             current->parameter != STORAGE_ERASED_PARAMETER)
     {
         //move the pointer
         current = storage_get_next_stored(current);
     }
 
-    if ((uintptr_t)current >= end || (parameter != STORAGE_INVALID_PARAMETER &&
-                current->parameter == STORAGE_ERASED_PARAMETER))
+    if ((uintptr_t)current >= end || current->parameter == STORAGE_ERASED_PARAMETER)
     {
         return NULL;
     }
@@ -172,25 +176,28 @@ static StoredValue *storage_find(uint16_t parameter)
     }
 }
 
-bool storage_read(uint16_t parameter, void *buf, size_t *len)
+void storage_read(uint16_t parameter, void *buf, size_t *len, Error err)
 {
-    StoredValue *value = storage_find(parameter);
-    if (value == NULL)
+    if (ERROR_IS_FATAL(err))
+        return;
+
+    StoredValue *value = storage_find(parameter, err);
+    if (ERROR_IS_FATAL(err))
+        return;
+    if (!value)
     {
-        *len = 0;
-        return false;
+        ERROR_SET(err, STORAGE_ERR_NOT_FOUND);
     }
-    else
-    {
-        size_t readLen = value->size;
-        if (*len > readLen)
-            readLen = *len;
-        memcpy(buf, value->data, readLen);
-        if (readLen == *len)
-            return true;
-        *len = readLen;
-        return false;
-    }
+
+    size_t readLen = value->size;
+    if (*len > readLen)
+        readLen = *len;
+    memcpy(buf, value->data, readLen);
+    if (readLen == *len)
+        return;
+
+    *len = readLen;
+    ERROR_SET(err, STORAGE_WRN_INSUFFICIENT_BUF);
 }
 
 /**
@@ -221,9 +228,13 @@ static void storage_lock(void)
  *
  * address: Halfword-aligned write address
  * data: Halfword to write
+ * err: Error instance
  */
-static _RAM bool storage_flash_do_write(uint16_t *addr, uint16_t data)
+static _RAM void storage_flash_do_write(uint16_t *addr, uint16_t data, Error err)
 {
+    if (ERROR_IS_FATAL(err))
+        return;
+
     //half-word program operation
     FLASH->CR |= FLASH_CR_PG;
     *addr = data;
@@ -232,13 +243,23 @@ static _RAM bool storage_flash_do_write(uint16_t *addr, uint16_t data)
     if (FLASH->SR & FLASH_SR_EOP)
     {
         FLASH->SR = FLASH_SR_EOP;
-        return *addr == data;
+        if (*addr != data)
+            ERROR_SET(err, STORAGE_ERR_VERIFY);
     }
     else
     {
+        if (FLASH->SR & FLASH_SR_WRPRTERR)
+        {
+            ERROR_SET(err, STORAGE_ERR_WRITEPROT);
+        }
+        else if (FLASH->SR & FLASH_SR_PGERR)
+        {
+            ERROR_SET(err, STORAGE_ERR_PROGRAM);
+        }
+
         FLASH->SR = FLASH_SR_WRPRTERR | FLASH_SR_PGERR;
-        return false;
     }
+    FLASH->CR &= ~FLASH_CR_PG;
 }
 
 /**
@@ -247,13 +268,14 @@ static _RAM bool storage_flash_do_write(uint16_t *addr, uint16_t data)
  * addr: Halfword-aligned address to write
  * data: Halfword to write
  */
-static bool storage_flash_write(uint16_t *addr, uint16_t data)
+static void storage_flash_write(uint16_t *addr, uint16_t data, Error err)
 {
-    bool result = false;
+    if (ERROR_IS_FATAL(err))
+        return;
+
     storage_unlock_flash();
-    result = storage_flash_do_write(addr, data);
+    storage_flash_do_write(addr, data, err);
     storage_lock();
-    return result;
 }
 
 /**
@@ -262,8 +284,11 @@ static bool storage_flash_write(uint16_t *addr, uint16_t data)
  *
  * pageaddr: Address located within the 1KB page to be erased.
  */
-static _RAM bool storage_flash_do_erase_page(uint16_t *pageaddr)
+static _RAM void storage_flash_do_erase_page(uint16_t *pageaddr, Error err)
 {
+    if (ERROR_IS_FATAL(err))
+        return;
+
     //page erase operation
     FLASH->CR |= FLASH_CR_PER;
     FLASH->AR = (uint32_t)(pageaddr);
@@ -273,13 +298,21 @@ static _RAM bool storage_flash_do_erase_page(uint16_t *pageaddr)
     if (FLASH->SR & FLASH_SR_EOP)
     {
         FLASH->SR = FLASH_SR_EOP;
-        return true;
     }
     else
     {
+        if (FLASH->SR & FLASH_SR_WRPRTERR)
+        {
+            ERROR_SET(err, STORAGE_ERR_ERASE_WRITEPROT);
+        }
+        else if (FLASH->SR & FLASH_SR_PGERR)
+        {
+            ERROR_SET(err, STORAGE_ERR_ERASE_PROGRAM);
+        }
+
         FLASH->SR = FLASH_SR_WRPRTERR | FLASH_SR_PGERR;
-        return false;
     }
+    FLASH->CR &= ~FLASH_CR_PER;
 }
 
 /**
@@ -287,18 +320,22 @@ static _RAM bool storage_flash_do_erase_page(uint16_t *pageaddr)
  *
  * pageaddr: Address within the page to erase
  */
-static bool storage_flash_erase_page(uint16_t *pageaddr)
+static void storage_flash_erase_page(uint16_t *pageaddr, Error err)
 {
-    bool result = false;
+    if (ERROR_IS_FATAL(err))
+        return;
+
     storage_unlock_flash();
-    result = storage_flash_do_erase_page(pageaddr);
+    storage_flash_do_erase_page(pageaddr, err);
     storage_lock();
-    return result;
 }
 
-static bool storage_flash_write_stored_value(StoredValue *location, uint16_t parameter,
-        uint16_t len, const void *buf)
+static void storage_flash_write_stored_value(StoredValue *location, uint16_t parameter,
+        uint16_t len, const void *buf, Error err)
 {
+    if (ERROR_IS_FATAL(err))
+        return;
+
     uint8_t *bytes = (uint8_t *)buf;
     for (size_t idx = 0; idx < len; idx += 2)
     {
@@ -307,30 +344,34 @@ static bool storage_flash_write_stored_value(StoredValue *location, uint16_t par
             halfword |= ((uint16_t)bytes[idx+1]) << 8;
         // I promise that idx is an even number and is uint16_t*
         // aligned.
-        if (!storage_flash_write((uint16_t*)(&location->data[idx]), halfword))
-            return false;
+        storage_flash_write((uint16_t*)(&location->data[idx]), halfword, err);
+        if (ERROR_IS_FATAL(err))
+            return;
     }
     // Size is written next.
-    if (!storage_flash_write(&location->size, len))
-        return false;
+    storage_flash_write(&location->size, len, err);
+    if (ERROR_IS_FATAL(err))
+        return;
     // Parameter is last. The entry is now considered valid and will
     // be walked.
-    return storage_flash_write(&location->parameter, parameter);
+    storage_flash_write(&location->parameter, parameter, err);
 }
 
 /**
  * Copies and consolidates the current storage segment into the other
  * one
  */
-static bool storage_migrate()
+static void storage_migrate(Error err)
 {
+    if (ERROR_IS_FATAL(err))
+        return;
     StoredValue *src;
     uintptr_t end;
-    storage_get_start_end(&src, &end);
+    storage_get_start_end(&src, &end, err);
 
     //If there isn't a current section, we can't migrate anything
-    if (!src || !end)
-        return false;
+    if (ERROR_IS_FATAL(err))
+        return;
 
     //Determine the destination page
     StoredValue *dest = src == &_sstoragea ? &_sstorageb : &_sstoragea;
@@ -340,38 +381,64 @@ static bool storage_migrate()
     //validate that the destination is not active
     //TODO: Do we want to actually check if its erased instead?
     if (*magicdest == STORAGE_SECTION_START_MAGIC)
-        return false;
+    {
+        ERROR_SET(err, STORAGE_ERR_MIGRATE_MAGIC);
+        return;
+    }
 
     // Iterate the source and write all valid parameters to the
     // destination
     while ((uintptr_t)src < end && src->parameter != STORAGE_ERASED_PARAMETER &&
             src->size != STORAGE_INVALID_SIZE)
     {
-        if (src->parameter == STORAGE_INVALID_PARAMETER)
-        {
-            src = storage_get_next_stored(src);
-        }
-        else
+        if (src->parameter != STORAGE_INVALID_PARAMETER)
         {
             //write this to destination
-            if (!storage_flash_write_stored_value(dest, src->parameter, src->size,
-                        src->data))
-                return false;
+            storage_flash_write_stored_value(dest, src->parameter, src->size, src->data, err);
+            if (ERROR_IS_FATAL(err))
+                return;
             dest = storage_get_next_stored(dest);
         }
+        src = storage_get_next_stored(src);
     }
 
     // This section is now fully migrated and is good
-    if (!storage_flash_write(magicdest, STORAGE_SECTION_START_MAGIC))
-        return false;
+    storage_flash_write(magicdest, STORAGE_SECTION_START_MAGIC, err);
+    if (ERROR_IS_FATAL(err))
+        return;
 
     // any pointer within the page will erase the entire page
-    storage_flash_erase_page(magicsrc);
-    return true;
+    storage_flash_erase_page(magicsrc, err);
 }
 
-bool storage_write(uint16_t parameter, const void *buf, size_t len)
+static StoredValue *storage_find_end(Error err)
 {
+    StoredValue *start;
+    uintptr_t end;
+    storage_get_start_end(&start, &end, err);
+
+    StoredValue *next = start;
+    while ((uintptr_t)next < end && next->parameter != STORAGE_ERASED_PARAMETER)
+    {
+        next = storage_get_next_stored(next);
+    }
+
+    if ((uintptr_t)next > end)
+    {
+        // There is some corrupt data forcing us beyond the end
+        ERROR_SET(err, STORAGE_ERR_CORRUPT);
+        return NULL;
+    }
+    return next;
+}
+
+uintptr_t last_start;
+
+void storage_write(uint16_t parameter, const void *buf, size_t len, Error err)
+{
+    if (ERROR_IS_FATAL(err))
+        return;
+
     StoredValue *start;
     uintptr_t end;
 
@@ -380,19 +447,21 @@ bool storage_write(uint16_t parameter, const void *buf, size_t len)
     // these. I also don't handle things like surprise power removal
     // very well. Basically, a write could be very fragile.
 
-    storage_get_start_end(&start, &end);
-    if (!start || !end)
-        return false;
+    storage_get_start_end(&start, &end, err);
+    if (ERROR_IS_FATAL(err))
+        return;
 
-    StoredValue *current = storage_find(parameter);
-    if (current == NULL)
-        return false;
+    StoredValue *current = storage_find(parameter, err);
+    if (ERROR_IS_FATAL(err))
+        return;
 
     // Walk the storage until we come to the next free space
     // or we reach the end
-    StoredValue *next = storage_find(STORAGE_INVALID_PARAMETER);
-    if (!next)
-        return false; //there is some corrupt data that has forced us beyond the end
+    StoredValue *next = storage_find_end(err);
+    if (ERROR_IS_FATAL(err))
+        return;
+
+    last_start = (uintptr_t)next;
 
     // Compute the end address of the block
     uintptr_t endaddr = storage_get_next_stored_address((uintptr_t)next, len);
@@ -402,29 +471,44 @@ bool storage_write(uint16_t parameter, const void *buf, size_t len)
     {
         //we have reached the end of the segment. Migrate to the other
         //segment.
-        if (!storage_migrate())
-            return false;
+        storage_migrate(err);
+        if (ERROR_IS_FATAL(err))
+            return;
 
         //recompute the segment boundaries
-        storage_get_start_end(&start, &end);
+        storage_get_start_end(&start, &end, err);
+        if (ERROR_IS_FATAL(err))
+            return;
 
         //re-locate the original value
-        current = storage_find(parameter);
+        current = storage_find(parameter, err);
+        if (ERROR_IS_FATAL(err))
+            return;
         if (current == NULL)
-            return false; //This is a big problem, we've now lost a value.
+        {
+            //This is a big problem, we've now lost a value.
+            ERROR_SET(err, STORAGE_ERR_CORRUPT);
+            return;
+        }
 
         //locate the next free spot
-        next = storage_find(STORAGE_INVALID_PARAMETER);
+        next = storage_find_end(err);
+        if (ERROR_IS_FATAL(err))
+            return;
+
         endaddr = storage_get_next_stored_address((uintptr_t)next, len);
         if ((uintptr_t)next > end || endaddr > end)
-            return false; //there is no space large enough to hold this after consolidation
+        {
+            //there is no space large enough to hold this after
+            //consolidation
+            ERROR_SET(err, STORAGE_ERR_TOO_LARGE);
+        }
     }
 
     // Write the new value
-    if (!storage_flash_write_stored_value(next, parameter, len, buf))
-        return false;
+    storage_flash_write_stored_value(next, parameter, len, buf, err);
 
     // Invalidate the old value
-    return storage_flash_write(&(current->parameter), STORAGE_INVALID_PARAMETER);
+    storage_flash_write(&(current->parameter), STORAGE_INVALID_PARAMETER, err);
 }
 
