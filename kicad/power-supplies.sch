@@ -1,39 +1,6 @@
-EESchema Schematic File Version 2
-LIBS:power
-LIBS:device
-LIBS:switches
-LIBS:relays
-LIBS:motors
-LIBS:transistors
-LIBS:conn
-LIBS:linear
-LIBS:regul
-LIBS:74xx
-LIBS:cmos4000
-LIBS:adc-dac
-LIBS:memory
-LIBS:xilinx
-LIBS:microcontrollers
-LIBS:dsp
-LIBS:microchip
-LIBS:analog_switches
-LIBS:motorola
-LIBS:texas
-LIBS:intel
-LIBS:audio
-LIBS:interface
-LIBS:digital-audio
-LIBS:philips
-LIBS:display
-LIBS:cypress
-LIBS:siliconi
-LIBS:opto
-LIBS:atmel
-LIBS:contrib
-LIBS:valves
-LIBS:midi-fader
+EESchema Schematic File Version 4
 LIBS:midi-fader-cache
-EELAYER 25 0
+EELAYER 26 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
@@ -48,7 +15,7 @@ Comment3 ""
 Comment4 ""
 $EndDescr
 $Comp
-L MCP1603 U3
+L midi-fader:MCP1603 U3
 U 1 1 5B3C69DA
 P 7300 2300
 F 0 "U3" H 7450 2050 60  0000 C CNN
@@ -60,7 +27,7 @@ F 4 "MCP1603T-330I/OSCT-ND" H 7300 2650 60  0001 C CNN "Part No."
 	1    0    0    -1  
 $EndComp
 $Comp
-L MIC5501-XYM5 U5
+L midi-fader:MIC5501-XYM5 U5
 U 1 1 5B3C6A50
 P 2900 3900
 F 0 "U5" H 3100 3650 60  0000 C CNN
@@ -72,7 +39,7 @@ F 4 "576-4764-1-ND" H 2900 4250 60  0001 C CNN "Part No."
 	1    0    0    -1  
 $EndComp
 $Comp
-L L L2
+L Device:L L2
 U 1 1 5B3CF824
 P 8150 2200
 F 0 "L2" V 8100 2200 50  0000 C CNN
@@ -84,7 +51,7 @@ F 4 "732-1008-1-ND" H 8150 2200 60  0001 C CNN "Part No."
 	0    -1   -1   0   
 $EndComp
 $Comp
-L C C18
+L Device:C C18
 U 1 1 5B3CF8EC
 P 8950 2650
 F 0 "C18" H 8975 2750 50  0000 L CNN
@@ -96,7 +63,7 @@ F 4 "1276-6464-1-ND" H 8950 2650 60  0001 C CNN "Part No."
 	1    0    0    -1  
 $EndComp
 $Comp
-L VBUS #PWR011
+L power:VBUS #PWR011
 U 1 1 5B3CF911
 P 1000 2100
 F 0 "#PWR011" H 1000 1950 50  0001 C CNN
@@ -107,7 +74,7 @@ F 3 "" H 1000 2100 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C14
+L Device:C C14
 U 1 1 5B3CF945
 P 1000 2450
 F 0 "C14" H 1025 2550 50  0000 L CNN
@@ -119,7 +86,7 @@ F 4 "1276-6464-1-ND" H 1000 2450 60  0001 C CNN "Part No."
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C15
+L Device:C C15
 U 1 1 5B3CF984
 P 1300 2450
 F 0 "C15" H 1325 2550 50  0000 L CNN
@@ -131,7 +98,7 @@ F 4 "1276-1182-1-ND" H 1300 2450 60  0001 C CNN "Part No."
 	1    0    0    -1  
 $EndComp
 $Comp
-L R R15
+L Device:R R15
 U 1 1 5B3CF9F9
 P 2900 2450
 F 0 "R15" V 2980 2450 50  0000 C CNN
@@ -142,7 +109,7 @@ F 3 "" H 2900 2450 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L R R18
+L Device:R R18
 U 1 1 5B3CFA6C
 P 2900 2950
 F 0 "R18" V 2980 2950 50  0000 C CNN
@@ -153,7 +120,7 @@ F 3 "" H 2900 2950 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L R R20
+L Device:R R20
 U 1 1 5B3CFA99
 P 1900 3750
 F 0 "R20" V 1980 3750 50  0000 C CNN
@@ -164,7 +131,7 @@ F 3 "" H 1900 3750 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L R R22
+L Device:R R22
 U 1 1 5B3CFAD8
 P 1900 4250
 F 0 "R22" V 1980 4250 50  0000 C CNN
@@ -175,7 +142,7 @@ F 3 "" H 1900 4250 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #PWR012
+L power:GND #PWR012
 U 1 1 5B3CFC0A
 P 1900 4600
 F 0 "#PWR012" H 1900 4350 50  0001 C CNN
@@ -186,7 +153,7 @@ F 3 "" H 1900 4600 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L R R14
+L Device:R R14
 U 1 1 5B3CFC3E
 P 1600 2450
 F 0 "R14" V 1680 2450 50  0000 C CNN
@@ -197,7 +164,7 @@ F 3 "" H 1600 2450 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L R R17
+L Device:R R17
 U 1 1 5B3CFCD7
 P 9300 2650
 F 0 "R17" V 9380 2650 50  0000 C CNN
@@ -224,7 +191,7 @@ VDDA
 Text Notes 3900 1600 0    60   ~ 0
 VDD
 $Comp
-L MIC2776L U4
+L midi-fader:MIC2776L U4
 U 1 1 5B3D06F8
 P 5500 2800
 F 0 "U4" H 5650 2550 60  0000 C CNN
@@ -236,7 +203,7 @@ F 4 "576-2686-1-ND" H 5500 3150 60  0001 C CNN "Part No."
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #PWR013
+L power:GND #PWR013
 U 1 1 5B3D0BA6
 P 1000 2800
 F 0 "#PWR013" H 1000 2550 50  0001 C CNN
@@ -247,7 +214,7 @@ F 3 "" H 1000 2800 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C20
+L Device:C C20
 U 1 1 5B3D0D98
 P 3550 4150
 F 0 "C20" H 3575 4250 50  0000 L CNN
@@ -259,7 +226,7 @@ F 4 "1276-1182-1-ND" H 3550 4150 60  0001 C CNN "Part No."
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C21
+L Device:C C21
 U 1 1 5B3D0DE7
 P 3800 4150
 F 0 "C21" H 3825 4250 50  0000 L CNN
@@ -271,7 +238,7 @@ F 4 "1276-1182-1-ND" H 3800 4150 60  0001 C CNN "Part No."
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C19
+L Device:C C19
 U 1 1 5B3D1400
 P 4500 2900
 F 0 "C19" H 4525 3000 50  0000 L CNN
@@ -283,7 +250,7 @@ F 4 "1276-1043-1-ND" H 4500 2900 60  0001 C CNN "Part No."
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #PWR014
+L power:GND #PWR014
 U 1 1 5B3D1467
 P 4500 3150
 F 0 "#PWR014" H 4500 2900 50  0001 C CNN
@@ -294,7 +261,7 @@ F 3 "" H 4500 3150 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L R R21
+L Device:R R21
 U 1 1 5B3D1C03
 P 4500 4050
 F 0 "R21" V 4580 4050 50  0000 C CNN
@@ -305,7 +272,7 @@ F 3 "" H 4500 4050 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L R R23
+L Device:R R23
 U 1 1 5B3D1C09
 P 4500 4550
 F 0 "R23" V 4580 4550 50  0000 C CNN
@@ -316,7 +283,7 @@ F 3 "" H 4500 4550 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L VDDA #PWR015
+L power:VDDA #PWR015
 U 1 1 5B3D1EBD
 P 3900 3700
 F 0 "#PWR015" H 3900 3550 50  0001 C CNN
@@ -327,7 +294,7 @@ F 3 "" H 3900 3700 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #PWR016
+L power:GND #PWR016
 U 1 1 5B3D212E
 P 4500 4800
 F 0 "#PWR016" H 4500 4550 50  0001 C CNN
@@ -338,7 +305,7 @@ F 3 "" H 4500 4800 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #PWR017
+L power:GND #PWR017
 U 1 1 5B3D21E1
 P 2900 3200
 F 0 "#PWR017" H 2900 2950 50  0001 C CNN
@@ -349,7 +316,7 @@ F 3 "" H 2900 3200 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #PWR018
+L power:GND #PWR018
 U 1 1 5B3D2387
 P 5500 3200
 F 0 "#PWR018" H 5500 2950 50  0001 C CNN
@@ -360,7 +327,7 @@ F 3 "" H 5500 3200 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C16
+L Device:C C16
 U 1 1 5B3D2824
 P 8450 2650
 F 0 "C16" H 8475 2750 50  0000 L CNN
@@ -372,7 +339,7 @@ F 4 "1276-1043-1-ND" H 8450 2650 60  0001 C CNN "Part No."
 	1    0    0    -1  
 $EndComp
 $Comp
-L C C17
+L Device:C C17
 U 1 1 5B3D286F
 P 8700 2650
 F 0 "C17" H 8725 2750 50  0000 L CNN
@@ -386,7 +353,7 @@ $EndComp
 Text Notes 9550 2700 0    60   ~ 0
 15mA\n50mW\nRC=1.47ms
 $Comp
-L GND #PWR019
+L power:GND #PWR019
 U 1 1 5B3D2E2E
 P 8450 3000
 F 0 "#PWR019" H 8450 2750 50  0001 C CNN
@@ -397,7 +364,7 @@ F 3 "" H 8450 3000 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L R R16
+L Device:R R16
 U 1 1 5B3D350D
 P 6400 2450
 F 0 "R16" V 6480 2450 50  0000 C CNN
@@ -408,7 +375,7 @@ F 3 "" H 6400 2450 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L R R19
+L Device:R R19
 U 1 1 5B3D35A4
 P 6400 3050
 F 0 "R19" V 6480 3050 50  0000 C CNN
@@ -419,7 +386,7 @@ F 3 "" H 6400 3050 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #PWR020
+L power:GND #PWR020
 U 1 1 5B3D365C
 P 6400 3300
 F 0 "#PWR020" H 6400 3050 50  0001 C CNN
@@ -430,7 +397,7 @@ F 3 "" H 6400 3300 50  0001 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L VDD #PWR021
+L power:VDD #PWR021
 U 1 1 5B3D3EA7
 P 9300 2100
 F 0 "#PWR021" H 9300 1950 50  0001 C CNN
@@ -633,7 +600,7 @@ Wire Notes Line
 Wire Wire Line
 	1900 4400 1900 4600
 $Comp
-L GND #PWR022
+L power:GND #PWR022
 U 1 1 5B3D4CA8
 P 7300 2800
 F 0 "#PWR022" H 7300 2550 50  0001 C CNN
@@ -648,7 +615,7 @@ Wire Wire Line
 Text Notes 3100 2700 0    60   ~ 0
 Vth=4.3V
 $Comp
-L VDDA #PWR023
+L power:VDDA #PWR023
 U 1 1 5B3D5A35
 P 4500 2600
 F 0 "#PWR023" H 4500 2450 50  0001 C CNN
@@ -670,7 +637,7 @@ VDD_L
 Text Label 2000 4000 0    60   ~ 0
 VDDA_EN
 $Comp
-L PWR_FLAG #FLG024
+L power:PWR_FLAG #FLG024
 U 1 1 5B41D3F3
 P 8800 2100
 F 0 "#FLG024" H 8800 2175 50  0001 C CNN
