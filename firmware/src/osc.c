@@ -71,6 +71,13 @@ void osc_request_hsi48(void)
     osc_run_callbacks();
 }
 
+void osc_start_hsi14(void)
+{
+    //Turn on HSI14
+    RCC->CR2 |= RCC_CR2_HSI14ON;
+    while (!(RCC->CR2 & RCC_CR2_HSI14RDY)) { }
+}
+
 void osc_add_callback(OscChangeCallback fn)
 {
     change_callbacks[next_change_callback++] = fn;

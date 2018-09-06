@@ -43,6 +43,11 @@ void osc_start_hsi48(void);
 void osc_request_hsi48(void);
 
 /**
+ * Starts the HSI14 ADC oscillator
+ */
+void osc_start_hsi14(void);
+
+/**
  * Adds a callback function to the list called when the oscillator
  * frequency is changed
  */
