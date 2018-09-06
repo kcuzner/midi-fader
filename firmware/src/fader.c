@@ -86,6 +86,13 @@ void fader_init(void)
     NVIC_EnableIRQ(ADC1_COMP_IRQn);
 }
 
+uint16_t fader_get_value(uint8_t channel)
+{
+    if (channel > 7)
+        return 0;
+    return fader_data[channel];
+}
+
 static uint32_t conversions = 0;
 
 void ADC1_IRQHandler(void)
