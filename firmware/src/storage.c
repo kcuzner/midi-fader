@@ -15,32 +15,33 @@
 #include <stdbool.h>
 
 /**
- * The motivation for this system is the fact that we don't have an
- * EEPROM. This storage system will attempt to level the wear across the
- * storage segment of memory as data is written. It operates as a linked
- * list which contains a 32-bit identifier and a pointer to the next
- * stored value. Immediately after the pointer is the data buffer that
- * contains the actual data for the value.
+ * The motivation for this system is the fact that we don't have an EEPROM.
+ * This storage system will attempt to level the wear across the storage
+ * segment of memory as data is written. It operates as a linked list which
+ * contains a 32-bit identifier and a size. Immediately after the size member
+ * is the data buffer that contains the actual data for the value. The next
+ * data value appears *size* bytes after the size member.
  *
  * The storage segment is divided into two portions:
- * - Segment 1 starts at _sstorage and ends the byte before _mstorage.
- * - Segment 2 starts at _mstorage and ends the byte before _estorage.
+ * - Segment A starts at _astorage and ends the byte before _bstorage_magic.
+ * - Segment B starts at _bstorage and ends the byte before _estorage.
  *
- * The effective storage space is limited to half of the storage size.
+ * The effective storage space is limited to half of the storage segment size.
  *
- * Reading proceeds by first deciding which segment to start walking.
- * Walking always starts at _sstorage. If the parameter at that location
- * shows that it is erased, the walking then jumps to _mstorage.
+ * Each storage segment is marked as active with a magic word that appears at
+ * the start of each segment. When deciding which segment to walk, the first
+ * segment (starting with A) which has a valid magic word is the one that is
+ * walked.
  *
- * When values are written, the original parameter is located and its
- * parameter field zeroed out (Writing 0x0000 is valid to non-erased
- * locations). The list is then walked until a parameter reads 0xFFFF or
- * the end of the segment is reached.
+ * When values are written, the original parameter is located and its parameter
+ * field zeroed out (Writing 0x0000 is valid to non-erased locations). The list
+ * is then walked until a parameter reads 0xFFFF or the end of the segment is
+ * reached.
  *
- * In the case where the end of a segment is reached, this indicates
- * that the segment is filled and needs to be erased. The segment is
- * walked from the start and all valid parameters are re-written to the
- * opposite segment. The now-unused segment is erased in its entirety.
+ * In the case where the end of a segment is reached, this indicates that the
+ * segment is filled and needs to be erased. The segment is walked from the
+ * start and all valid parameters are re-written to the opposite segment. The
+ * now-unused segment is erased in its entirety.
  */
 
 /**

@@ -14,6 +14,7 @@
 #include "error.h"
 #include "storage.h"
 #include "fader.h"
+#include "buttons.h"
 
 #include "_gen_usb_desc.h"
 
@@ -93,6 +94,7 @@ int main()
 
     usb_init();
     fader_init();
+    buttons_init();
 
     // Small delay to force a USB reset
     // TODO: Make this timed
