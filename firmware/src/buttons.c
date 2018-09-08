@@ -9,6 +9,7 @@
 #include "buttons.h"
 
 #include "stm32f0xx.h"
+#include "systick.h"
 
 /**
  * This uses the SPI peripheral to operate the shift registers that attach to
@@ -33,6 +34,11 @@ static uint8_t buttons_status[4];
 static uint8_t leds_status[4];
 
 /**
+ * Flag set to true when a transfer is ongoing
+ */
+static uint8_t transfer_ongoing = 0;
+
+/**
  * Toggles the LCLK pin
  */
 static void buttons_lclk_pulse(void)
@@ -54,6 +60,9 @@ static void buttons_lclk_pulse(void)
  */
 static void buttons_begin_transfer(void)
 {
+    // Workaround for bad wiring: De-assert OE#, bring LCLK high.
+    GPIOB->BSRR = GPIO_BSRR_BS_0 | GPIO_BSRR_BS_1;
+
     // Set up the DMA transfer sizes
     DMA1_Channel2->CNDTR = 4;
     DMA1_Channel3->CNDTR = 4;
@@ -98,12 +107,22 @@ static void buttons_end_transfer(void)
     // Step 3: Clear the DMAEN bits
     SPI1->CR2 &= ~(SPI_CR2_RXDMAEN | SPI_CR2_TXDMAEN);
 
-    // Pulse the LCLK to latch everything
-    buttons_lclk_pulse();
+    // Workaround for bad wiring: Assert OE#, bring LCLK low.
+    GPIOB->BSRR = GPIO_BSRR_BR_0 | GPIO_BSRR_BR_1;
 
-    // Set OE# low (note that it is kept low normally except right at the
-    // start)
-    GPIOB->BSRR = GPIO_BSRR_BR_1;
+    // This is only reset in this one place, and this is not called reentrantly.
+    transfer_ongoing = 0;
+}
+
+static void buttons_request_transfer(void)
+{
+    if (transfer_ongoing)
+        return;
+    // this variable is only set to 1 inside this method, which is not called
+    // reentrantly.
+    transfer_ongoing = 1;
+
+    buttons_begin_transfer();
 }
 
 void buttons_init(void)
@@ -158,8 +177,8 @@ void buttons_init(void)
 
     NVIC_EnableIRQ(DMA1_Channel2_3_IRQn);
 
-    // Begin the transfer
-    buttons_begin_transfer();
+    // Subscribe to system ticks. Every tick we begin a transfer.   
+    systick_subscribe(&buttons_request_transfer);
 }
 
 uint8_t buttons_get_count(void)
@@ -213,7 +232,6 @@ void DMA1_Channel2_3_IRQHandler(void)
         // Channel 2 transfer complete. We have finished transacting all the
         // bytes in the buffer.
         buttons_end_transfer();
-        buttons_begin_transfer();
     }
     if (DMA1->ISR & DMA_ISR_TEIF3)
     {

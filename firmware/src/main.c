@@ -15,6 +15,7 @@
 #include "storage.h"
 #include "fader.h"
 #include "buttons.h"
+#include "systick.h"
 
 #include "_gen_usb_desc.h"
 
@@ -91,6 +92,8 @@ int main()
     ERROR_INST(err);
 
     osc_request_hsi8();
+
+    systick_init();
 
     usb_init();
     fader_init();
