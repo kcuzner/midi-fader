@@ -31,7 +31,12 @@ static uint8_t buttons_status[4];
 /**
  * Transmit buffer for the LED status
  */
-static uint8_t leds_status[4];
+static uint8_t leds_status[4] = {
+    0xC0,
+    0x81,
+    0x81,
+    0x81
+};
 
 /**
  * Flag set to true when a transfer is ongoing
@@ -39,33 +44,35 @@ static uint8_t leds_status[4];
 static uint8_t transfer_ongoing = 0;
 
 /**
- * Toggles the LCLK pin
- */
-static void buttons_lclk_pulse(void)
-{
-    // The STP08D05 can handle a 20ns pulse
-    // The 74HCT165 can handle a pulse between 100ns and 20ns
-    //
-    // This microcontroller is not operating at 50MHz, so the maximum
-    // toggle frequency is probably somewhere quite a bit lower than 20ns
-    // (though I suspect it can reach 100ns (10MHz)).
-    GPIOB->BSRR = GPIO_BSRR_BS_0;
-    GPIOB->BSRR = GPIO_BSRR_BR_0;
-}
-
-/**
- * Begins a DMA-driven transfer on the SPI
+ * Begins a DMA-driven transfer on the SPI if one isn't already ongoing.
  *
  * The DMA channel must be configured in advance
+ *
+ * This method should not be called reentrantly..
  */
 static void buttons_begin_transfer(void)
 {
+    if (transfer_ongoing)
+        return;
+    // this variable is only set to 1 inside this method, which is not called
+    // reentrantly.
+    transfer_ongoing = 1;
+
     // Workaround for bad wiring: De-assert OE#, bring LCLK high.
+    //
+    // This allows the input shift register to give us good data, at the
+    // expense of the LED register outputting everything as it sees it come
+    // in from the master (hence deasserting OE#). To counteract the dimming
+    // effect, the transfer is only initiated periodically rather than right
+    // after the previous one finishes.
+    //
+    // Note that OE will be latched by the LEDs on the falling edge of the
+    // first clock cycle, even though LCLK will be latched on the rising edge.
     GPIOB->BSRR = GPIO_BSRR_BS_0 | GPIO_BSRR_BS_1;
 
     // Set up the DMA transfer sizes
-    DMA1_Channel2->CNDTR = 4;
-    DMA1_Channel3->CNDTR = 4;
+    DMA1_Channel2->CNDTR = 1;
+    DMA1_Channel3->CNDTR = 1;
 
     // See section 25.8.9 in the reference manual for this procedure
     // Step 1: Enable RX DMAEN
@@ -87,6 +94,8 @@ static void buttons_begin_transfer(void)
  *
  * Also pulses the LCLK both to prepare the buttons for the next transfer
  * and to display the LED values from this transfer
+ *
+ * This method should not be called reentrantly.
  */
 static void buttons_end_transfer(void)
 {
@@ -108,21 +117,28 @@ static void buttons_end_transfer(void)
     SPI1->CR2 &= ~(SPI_CR2_RXDMAEN | SPI_CR2_TXDMAEN);
 
     // Workaround for bad wiring: Assert OE#, bring LCLK low.
+    //
+    // This is the reverse of the workaround during the begin transfer phase.
+    // It also latches the next batch of data.
     GPIOB->BSRR = GPIO_BSRR_BR_0 | GPIO_BSRR_BR_1;
+
+    // Perform one extra clock cycle.
+    //
+    // The rising edge latches LCLK and the falling edge latches OE#.
+    //
+    // Hopefully this doesn't wreak to much havoc with the buttons. The PL#
+    // input is asynchronous and it is deasserted just before the first clock
+    // cycle the next transaction, so the buttons *should* have the most
+    // recent value. Everything looks right when tested with only one shift
+    // register, so I don't know if this actually works.
+    GPIOB->BSRR = GPIO_BSRR_BR_3;
+    GPIOB->MODER ^= GPIO_MODER_MODER3_1 | GPIO_MODER_MODER3_0;
+    GPIOB->BSRR = GPIO_BSRR_BS_3;
+    GPIOB->BSRR = GPIO_BSRR_BR_3;
+    GPIOB->MODER ^= GPIO_MODER_MODER3_1 | GPIO_MODER_MODER3_0;
 
     // This is only reset in this one place, and this is not called reentrantly.
     transfer_ongoing = 0;
-}
-
-static void buttons_request_transfer(void)
-{
-    if (transfer_ongoing)
-        return;
-    // this variable is only set to 1 inside this method, which is not called
-    // reentrantly.
-    transfer_ongoing = 1;
-
-    buttons_begin_transfer();
 }
 
 void buttons_init(void)
@@ -156,10 +172,13 @@ void buttons_init(void)
         GPIO_MODER_MODER5_1;
     GPIOB->AFR[0] &= ~(GPIO_AFRL_AFSEL3_Msk | GPIO_AFRL_AFSEL4_Msk |
             GPIO_AFRL_AFSEL5_Msk);
+    // We enable the internal pulldowns on all of these pins
+    GPIOB->PUPDR |= GPIO_PUPDR_PUPDR3_1 | GPIO_PUPDR_PUPDR4_1 |
+        GPIO_PUPDR_PUPDR5_1;
 
     // Configure the SPI
     //
-    SPI1->CR1 = SPI_CR1_SSM | SPI_CR1_SSI | SPI_CR1_LSBFIRST | SPI_CR1_MSTR;
+    SPI1->CR1 = SPI_CR1_SSM | SPI_CR1_SSI | SPI_CR1_LSBFIRST | SPI_CR1_MSTR | SPI_CR1_BR_2;
     SPI1->CR2 = SPI_CR2_FRXTH | SPI_CR2_DS_0 | SPI_CR2_DS_1 | SPI_CR2_DS_2;
 
     //DMA Channel 2 handles SPI1_RX
@@ -178,7 +197,7 @@ void buttons_init(void)
     NVIC_EnableIRQ(DMA1_Channel2_3_IRQn);
 
     // Subscribe to system ticks. Every tick we begin a transfer.   
-    systick_subscribe(&buttons_request_transfer);
+    systick_subscribe(&buttons_begin_transfer);
 }
 
 uint8_t buttons_get_count(void)
