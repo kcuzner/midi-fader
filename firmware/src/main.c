@@ -14,6 +14,8 @@
 #include "error.h"
 #include "storage.h"
 #include "fader.h"
+#include "buttons.h"
+#include "systick.h"
 
 #include "_gen_usb_desc.h"
 
@@ -84,6 +86,16 @@ const USBApplicationSetup setup = {
 
 const USBApplicationSetup *usb_app_setup = &setup;
 
+static volatile uint8_t send_midi = 0;
+static void update_tick(void)
+{
+    static uint32_t count = 0;
+    if (count++ < 10)
+        return;
+
+    send_midi = 1;
+}
+
 uint8_t buf[16];
 int main()
 {
@@ -91,8 +103,13 @@ int main()
 
     osc_request_hsi8();
 
+    systick_init();
+
     usb_init();
     fader_init();
+    buttons_init();
+
+    systick_subscribe(&update_tick);
 
     // Small delay to force a USB reset
     // TODO: Make this timed
@@ -109,14 +126,15 @@ int main()
 
     while (1)
     {
-        for (uint32_t i = 0; i < 0xFFF; i++) { }
+        if (send_midi)
+        {
+            send_midi = 0;
+            control[2]++;
+            control[2] &= 0x7F;
+            usb_midi_send(MIDI_CTRL, control, sizeof(control));
+        }
 
-        control[2]++;
-        control[2] &= 0x7F;
-
-        usb_midi_send(MIDI_CTRL, control, sizeof(control));
-        size_t len = sizeof(buf);
-        storage_read(0x8001, buf, &len, ERROR_FROM_INST(err));
+        buttons_write_leds(buttons_read());
     }
 
     return 0;
