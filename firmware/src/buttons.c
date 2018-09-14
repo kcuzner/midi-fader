@@ -26,17 +26,18 @@
 
 /**
  * Receive buffer for the button status
+ *
+ * Buttons are clocked MSB first, so the 1st byte is this board and the last
+ * byte is the farthest board.
  */
-static uint8_t buttons_status[4];
+static volatile uint8_t buttons_status[4];
 /**
  * Transmit buffer for the LED status
+ *
+ * LEDs are clocked MSB first, so the last byte is this board and the 1st byte
+ * is the farthest board (opposite the buttons).
  */
-static uint8_t leds_status[4] = {
-    0xC0,
-    0x81,
-    0x81,
-    0x81
-};
+static volatile uint8_t leds_status[4];
 
 /**
  * Flag set to true when a transfer is ongoing
@@ -71,8 +72,8 @@ static void buttons_begin_transfer(void)
     GPIOB->BSRR = GPIO_BSRR_BS_0 | GPIO_BSRR_BS_1;
 
     // Set up the DMA transfer sizes
-    DMA1_Channel2->CNDTR = 1;
-    DMA1_Channel3->CNDTR = 1;
+    DMA1_Channel2->CNDTR = sizeof(buttons_status);
+    DMA1_Channel3->CNDTR = sizeof(leds_status);
 
     // See section 25.8.9 in the reference manual for this procedure
     // Step 1: Enable RX DMAEN
@@ -178,7 +179,8 @@ void buttons_init(void)
 
     // Configure the SPI
     //
-    SPI1->CR1 = SPI_CR1_SSM | SPI_CR1_SSI | SPI_CR1_LSBFIRST | SPI_CR1_MSTR | SPI_CR1_BR_2;
+    // MSB first, fastest speed possible, no slave select.
+    SPI1->CR1 = SPI_CR1_SSM | SPI_CR1_SSI | SPI_CR1_MSTR;
     SPI1->CR2 = SPI_CR2_FRXTH | SPI_CR2_DS_0 | SPI_CR2_DS_1 | SPI_CR2_DS_2;
 
     //DMA Channel 2 handles SPI1_RX
@@ -196,7 +198,7 @@ void buttons_init(void)
 
     NVIC_EnableIRQ(DMA1_Channel2_3_IRQn);
 
-    // Subscribe to system ticks. Every tick we begin a transfer.   
+    // Subscribe to system ticks. Every tick we begin a transfer.
     systick_subscribe(&buttons_begin_transfer);
 }
 
@@ -215,19 +217,21 @@ uint8_t buttons_get_count(void)
 uint8_t buttons_read(void)
 {
     uint8_t compressed = 0;
-    for (uint8_t i = 0; i < 4; i++)
+    for (uint8_t i = 0; i < sizeof(buttons_status); i++)
     {
         compressed >>= 2;
-        compressed |= (buttons_status[i] & 0x3) << 6;
+        // 1st button is the LSB of the byte
+        compressed |= ((~buttons_status[i]) & 0x3) << 6;
     }
     return compressed;
 }
 
 void buttons_write_leds(uint8_t leds)
 {
-    for (uint8_t i = 0; i < 4; i++)
+    for (uint8_t i = 0; i < sizeof(leds_status); i++)
     {
-        leds_status[i] = leds & 0x3;
+        // last button is index 0, 1st button is the last index
+        leds_status[(sizeof(leds_status)-1)-i] = leds & 0x3;
         leds >>= 2;
     }
 }
