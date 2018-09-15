@@ -117,6 +117,11 @@ void hook_usb_midi_configured(void);
 void hook_usb_midi_received(const USBMidiEvent *events, uint8_t eventCount);
 
 /**
+ * Hook function called when a buffer has been read by the host
+ */
+void hook_usb_midi_send_complete(void);
+
+/**
  * USB interface object for the app
  */
 extern const USBInterface midi_interface;

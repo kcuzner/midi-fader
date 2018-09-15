@@ -229,6 +229,7 @@ static USBMidiEvent midi_receive_buf[USB_MIDI_RX_QUEUE_SIZE];
 
 void __attribute__((weak)) hook_usb_midi_received(const USBMidiEvent *events, uint8_t eventCount) { }
 void __attribute__((weak)) hook_usb_midi_configured(void) { }
+void __attribute__((weak)) hook_usb_midi_send_complete(void) { }
 
 #define USB_MIDI_NEXT_TX_IDX(C) (((C) + 1) % USB_MIDI_TX_QUEUE_SIZE)
 
@@ -372,6 +373,7 @@ static void usb_midi_endpoint_sent(uint8_t endpoint, void *buf, uint16_t len)
         // It is here that we might cause data to get stuck in the USB Peripheral
         // and go stale.
         midi_usb_status.sending = 0;
+        hook_usb_midi_send_complete();
         usb_midi_flush();
     }
 }
