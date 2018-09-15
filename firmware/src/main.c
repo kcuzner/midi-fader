@@ -93,6 +93,7 @@ static void update_tick(void)
     if (count++ < 10)
         return;
 
+    count = 0;
     send_midi = 1;
 }
 
@@ -131,7 +132,7 @@ int main()
             send_midi = 0;
             control[2]++;
             control[2] &= 0x7F;
-            //usb_midi_send(MIDI_CTRL, control, sizeof(control), USB_MIDI_NOBLOCK);
+            usb_midi_send(MIDI_CTRL, control, sizeof(control), USB_MIDI_NOBLOCK);
         }
 
         buttons_write_leds(buttons_read());

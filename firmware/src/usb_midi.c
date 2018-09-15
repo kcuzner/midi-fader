@@ -307,7 +307,7 @@ static void usb_midi_send_queue(void)
     // Justification for no atomic section: This is either called from within
     // an atomic section or during the USB ISR (in which case
     // midi_send_event_end_idx will not move)
-    for (; midi_send_event_start_idx < midi_send_event_end_idx;
+    for (; midi_send_event_start_idx != midi_send_event_end_idx;
             midi_send_event_start_idx = USB_MIDI_NEXT_TX_IDX(midi_send_event_start_idx))
     {
         midi_send_usb_buf[len++] = midi_send_event_queue[midi_send_event_start_idx];
