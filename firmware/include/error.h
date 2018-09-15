@@ -6,6 +6,9 @@
 #ifndef _ERROR_H_
 #define _ERROR_H_
 
+#include <stdint.h>
+#include <stddef.h>
+
 /**
  * Error instance so we have somewhere in memory to store it
  */
