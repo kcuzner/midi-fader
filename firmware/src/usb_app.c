@@ -60,6 +60,14 @@ void hook_usb_reset(void)
 
     if (usb_app_setup->hook_usb_reset)
         (*usb_app_setup->hook_usb_reset)();
+
+    FOREACH_INTERFACE(node)
+    {
+        if (!node->interface->hook_usb_reset)
+            continue;
+
+        (*node->interface->hook_usb_reset)();
+    }
 }
 
 void hook_usb_sof(void)

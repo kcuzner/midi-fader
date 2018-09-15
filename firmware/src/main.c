@@ -131,7 +131,7 @@ int main()
             send_midi = 0;
             control[2]++;
             control[2] &= 0x7F;
-            usb_midi_send(MIDI_CTRL, control, sizeof(control));
+            //usb_midi_send(MIDI_CTRL, control, sizeof(control), USB_MIDI_NOBLOCK);
         }
 
         buttons_write_leds(buttons_read());

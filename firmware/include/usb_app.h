@@ -83,6 +83,10 @@ typedef void (*USBEndpointSentHook)(uint8_t endpoint, void *buf, uint16_t len);
  */
 typedef struct {
     /**
+     * Hook function called when a USB reset occurs
+     */
+    USBNoParameterHook hook_usb_reset;
+    /**
      * Hook function called when a setup request is received
      */
     USBHandleControlSetupHook hook_usb_handle_setup_request;

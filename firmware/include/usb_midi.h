@@ -60,22 +60,49 @@ typedef union {
 } __attribute__((packed)) USBMidiEvent;
 
 /**
+ * Number of elements which can be simultaneously queued
+ */
+#define USB_MIDI_TX_QUEUE_SIZE 16
+
+/**
+ * Maximum number of SoF intervals to wait before flushing the transmit queue.
+ * 
+ * This can have an impact on wasted bandwidth. A lower number means that an
+ * empty queue will be transmitted more often, while a higher number increases
+ * the chance that data will be sent which becomes stale.
+ */
+#define USB_MIDI_TX_INTERVAL_MS 10
+
+/**
+ * Number of events which can be simulaneously handled
+ */
+#define USB_MIDI_RX_QUEUE_SIZE 1
+
+/**
+ * Method to use for sending data
+ */
+typedef enum { USB_MIDI_NOBLOCK, USB_MIDI_BLOCK } USBMidiSendType;
+
+/**
  * Queues a midi event for sending
  *
- * This will spin-block if all buffers are full.
+ * The user application must *never* call this function reentrantly. If it is
+ * called from an ISR, it should always be the same ISR.
  *
  * codeIndex: Code index to send
  * data: Pointer to a data array that will be sent
  * len: Length of the data array, maximum 3, minimum 0
+ * sendType: If "BLOCK", this function will spin-block if the buffer is full.
+ * Otherwise, it will overwrite the oldest unsent event if the buffer is full.
  */
-void usb_midi_send(USBMidiCodeIndex codeIndex, const uint8_t *data, uint8_t len);
+void usb_midi_send(USBMidiCodeIndex codeIndex, const uint8_t *data, uint8_t len, USBMidiSendType sendType);
 
 /**
- * Flushes the send event queue
+ * Flushes the current event queue to the USB peripheral if there is no
+ * currently ongoing transmission.
  *
- * The queue is flushed automatically when a buffer is full and when a USB
- * SOF is received. This method allows for the application to explicitly
- * request a flush.
+ * This should be used very carefully to avoid sending the host data which could
+ * become stale.
  */
 void usb_midi_flush(void);
 
