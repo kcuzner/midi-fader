@@ -7,7 +7,9 @@ interface
 """
 
 import hid
-import struct, time, argparse, textwrap, ctypes
+import struct, time, argparse, textwrap, ctypes, os
+from collections import namedtuple
+import xml.etree.ElementTree as ET
 
 VID = 0x16c0
 PID = 0x05dc
@@ -54,7 +56,13 @@ class Response(object):
 class GetCommandResponse(Response):
     @property
     def value(self):
-        return self.parameters[2]
+        full_bytes = struct.pack('<i', self.parameters[2])
+        if self.size == 1:
+            return struct.unpack('<b', full_bytes[:1])[0]
+        elif self.size == 2:
+            return struct.unpack('<h', full_bytes[:2])[0]
+        else:
+            return self.parameters[2]
 
     @property
     def size(self):
@@ -106,6 +114,37 @@ def parsed_int(v):
     """
     return int(v, 0)
 
+class StorageInvalidError(Exception):
+    pass
+
+ParameterDefinition = namedtuple('ParameterDefinition', ['param', 'size'])
+
+def build_parameter_map(filename = 'configuration.storage.xml'):
+    scriptdir = os.path.dirname(os.path.realpath(__file__))
+    srcdir = os.path.join(scriptdir, os.path.sep.join(['..', 'src']))
+    root = ET.parse(os.path.join(srcdir, filename)).getroot()
+    parameter_map = {}
+    if root.tag != 'storage':
+        raise StorageInvalidError('Unexpected root tag {}'.format(root.tag))
+    for e in root:
+        if e.tag != 'value':
+            raise StorageInvalidError('Unexpected tag {}, expected value'.format(e.tag))
+        if e.attrib['name'] in parameter_map:
+            raise StorageInvalidError('Duplicate parameter name {}'.format(e.attrib['name']))
+        if e.attrib['type'] == 'uint8':
+            size = 1
+        elif e.attrib['type'] == 'uint16':
+            size = 2
+        elif e.attrib['type'] == 'uint32':
+            size = 4
+        elif e.attrib['type'] == 'utf8':
+            # We don't support the string type at the moment
+            continue
+        else:
+            raise StorageInvalidError('Unrecognized type {}'.format(e.attrib['type']))
+        parameter_map[e.attrib['name']] = ParameterDefinition(int(e.attrib['parameter'], 0), size)
+    return parameter_map
+
 class DeviceNotFoundError(Exception):
     pass
 
@@ -119,10 +158,12 @@ def main():
     subparsers = parser.add_subparsers(help='Command type to execute', dest='command')
     subparsers.required = True
     getter = subparsers.add_parser('get', help='Gets a parameter value')
-    getter.add_argument('param', type=parsed_int, help='Parameter number to get')
+    getter.add_argument('param', type=str, help='Parameter name to get')
     setter = subparsers.add_parser('set', help='Sets a parameter value')
-    setter.add_argument('param', type=parsed_int, help='Parameter number to set')
+    setter.add_argument('param', type=str, help='Parameter name to set')
     setter.add_argument('value', type=parsed_int, help='Parameter value')
+
+    parameter_map = build_parameter_map()
 
     args = parser.parse_args()
     dev = find_device()
@@ -130,17 +171,12 @@ def main():
         raise DeviceNotFoundError
     with dev:
         if args.command == 'get':
-            res = dev.get_parameter(args.param)
+            res = dev.get_parameter(parameter_map[args.param].param)
             if res is None:
                 raise NoResponseError
             print("Command: {}, Result: {}, Value: {}".format(res.command, res.status, res.value))
         elif args.command == 'set':
-            res = dev.get_parameter(args.param)
-            if res is None:
-                raise NoResponseError
-            print("Command: {}, Result: {}".format(res.command, res.status))
-            print("Derived size: {}".format(res.size))
-            res = dev.set_parameter(args.param, args.value, res.size)
+            res = dev.set_parameter(parameter_map[args.param].param, args.value, parameter_map[args.param].size)
             if res is None:
                 raise NoResponseError
             print("Command: {}, Result: {}".format(res.command, res.status))

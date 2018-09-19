@@ -191,14 +191,13 @@ void storage_read(uint16_t parameter, void *buf, size_t *len, Error err)
     }
 
     size_t readLen = value->size;
-    if (*len > readLen)
+    if (*len < readLen)
+    {
         readLen = *len;
+        ERROR_SET(err, STORAGE_WRN_INSUFFICIENT_BUF);
+    }
     memcpy(buf, value->data, readLen);
-    if (readLen == *len)
-        return;
-
     *len = readLen;
-    ERROR_SET(err, STORAGE_WRN_INSUFFICIENT_BUF);
 }
 
 /**
