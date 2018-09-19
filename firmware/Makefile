@@ -1,0 +1,175 @@
+# Makefile for the USB Midi-Fader firmware
+#
+# Kevin Cuzner
+#
+
+#
+# Settings
+#
+
+PROJECT = midi-fader
+
+# Project Structure
+SRCDIRS = src cmsis/src
+GENSRCDIRS = src
+BINDIR = bin
+OBJDIR = obj
+GENDIR = obj/gen
+INCDIRS = include cmsis/include
+
+# Project target
+CPU = cortex-m0
+
+# Sources
+GENERATE = USB_DESCRIPTOR STORAGE
+SRC = $(foreach DIR,$(SRCDIRS),$(wildcard $(DIR)/*.c))
+GENSRC = $(foreach DIR,$(GENSRCDIRS),$(wildcard $(DIR)/*.c))
+STORAGESRC = $(foreach DIR,$(SRCDIRS),$(wildcard $(DIR)/*.storage.xml))
+ASM = $(foreach DIR,$(SRCDIRS),$(wildcard $(DIR)/*.s))
+
+# Include directories
+INCLUDE  = $(foreach DIR,$(INCDIRS),-I$(DIR)) -I$(GENDIR) -I.
+
+# Linker
+LSCRIPT = STM32F042X6.ld
+
+# C Flags
+GCFLAGS  = -std=c11 -Wall -Os -fno-common -mthumb -mcpu=$(CPU) -DSTM32F042x6 --specs=nosys.specs --specs=nano.specs -g -Wa,-ahlms=$(addprefix $(OBJDIR)/,$(notdir $(<:.c=.lst)))
+GCFLAGS += -DUSB_DEBUG $(INCLUDE)
+CFLAGS   = $(GCFLAGS)
+LDFLAGS += -T$(LSCRIPT) -mthumb -mcpu=$(CPU) --specs=nosys.specs --specs=nano.specs -Wl,-Map,$(BINDIR)/$(PROJECT).map -Wl,--gc-sections
+ASFLAGS += -mcpu=$(CPU)
+
+# Flashing
+OCDFLAGS = -f openocd/openocd.cfg
+
+# Tools
+CC = arm-none-eabi-gcc
+AS = arm-none-eabi-as
+AR = arm-none-eabi-ar
+LD = arm-none-eabi-ld
+OBJCOPY = arm-none-eabi-objcopy
+SIZE = arm-none-eabi-size --format=SysV
+OBJDUMP = arm-none-eabi-objdump
+GDB = arm-none-eabi-gdb
+OCD = openocd
+
+# Code Generation
+PYTHON = python3
+DESCRIPTORGEN = $(PYTHON) ./scripts/descriptorgen.py
+STORAGEGEN_SCRIPT = ./scripts/storagegen.py
+STORAGEGEN = $(PYTHON) $(STORAGEGEN_SCRIPT)
+
+RM = rm -rf
+
+#
+# Build process
+#
+
+GENERATE_USB_DESCRIPTOR=USB_DESCRIPTOR
+GENERATE_USB_DESCRIPTOR_SRC=_gen_usb_desc.c
+GENERATE_USB_DESCRIPTOR_HDR=_gen_usb_desc.h
+
+GENERATE_STORAGE=STORAGE
+GENERATE_STORAGE_SRC=_gen_storage.c
+GENERATE_STORAGE_HDR=_gen_storage.h
+
+OBJ := $(addprefix $(OBJDIR)/,$(notdir $(SRC:.c=.o)))
+OBJ += $(addprefix $(OBJDIR)/,$(notdir $(ASM:.s=.o)))
+ifneq ($(filter $(GENERATE), $(GENERATE_USB_DESCRIPTOR)),)
+	GEN_OBJ += $(GENDIR)/$(GENERATE_USB_DESCRIPTOR_SRC:.c=.o)
+	GEN_TARGETS += $(GENERATE_USB_DESCRIPTOR)
+endif
+ifneq ($(filter $(GENERATE), $(GENERATE_STORAGE)),)
+	GEN_OBJ += $(GENDIR)/$(GENERATE_STORAGE_SRC:.c=.o)
+	GEN_TARGETS += $(GENDIR)/$(GENERATE_STORAGE_SRC:.c=.o)
+endif
+ALL_OBJ := $(OBJ) $(GEN_OBJ)
+DEP := $(addprefix $(OBJDIR)/,$(notdir $(SRC:.c=.d)))
+
+all:: $(BINDIR)/$(PROJECT).bin $(BINDIR)/$(PROJECT).hex
+
+Build: $(BINDIR)/$(PROJECT).bin
+
+install: $(BINDIR)/$(PROJECT).bin $(BINDIR)/openocd.pid
+	cat openocd/flash.cfg | nc localhost 4444
+
+gdb: $(BINDIR)/$(PROJECT).elf $(BINDIR)/openocd.pid
+	$(GDB) -ex "target remote localhost:3333" $(BINDIR)/$(PROJECT).elf
+
+stop:
+	-echo shutdown | nc localhost 4444
+
+macros:
+	$(CC) $(GCFLAGS) -dM -E - < /dev/null
+
+cleanBuild: clean
+
+clean: stop
+	$(RM) $(BINDIR)
+	$(RM) $(OBJDIR)
+
+size:
+	$(SIZE) $(BINDIR)/$(PROJECT).elf
+
+#
+# Debug
+#
+
+$(BINDIR)/openocd.pid:
+	openocd/run-openocd-server.sh $(OCD) $@
+
+#
+# Code generation
+#
+$(GENERATE_USB_DESCRIPTOR):
+	@mkdir -p $(GENDIR)
+	$(DESCRIPTORGEN) -os $(GENDIR)/$(GENERATE_USB_DESCRIPTOR_SRC) \
+		-oh $(GENDIR)/$(GENERATE_USB_DESCRIPTOR_HDR) \
+		$(GENSRC)
+
+$(GENDIR)/$(GENERATE_STORAGE_SRC): $(STORAGESRC) $(STORAGEGEN_SCRIPT)
+	@mkdir -p $(GENDIR)
+	$(STORAGEGEN) -os $(GENDIR)/$(GENERATE_STORAGE_SRC) \
+		-oh $(GENDIR)/$(GENERATE_STORAGE_HDR) \
+		$<
+
+#
+# Compilation
+#
+
+$(BINDIR)/$(PROJECT).hex: $(BINDIR)/$(PROJECT).elf
+	$(OBJCOPY) -O ihex $(BINDIR)/$(PROJECT).elf $(BINDIR)/$(PROJECT).hex
+
+$(BINDIR)/$(PROJECT).bin: $(BINDIR)/$(PROJECT).elf
+	$(OBJCOPY) -O binary $(BINDIR)/$(PROJECT).elf $(BINDIR)/$(PROJECT).bin
+
+$(BINDIR)/$(PROJECT).elf: $(ALL_OBJ) $(LSCRIPT)
+	@mkdir -p $(dir $@)
+	$(CC) $(ALL_OBJ) $(LDFLAGS) -o $(BINDIR)/$(PROJECT).elf
+	$(OBJDUMP) -D $(BINDIR)/$(PROJECT).elf > $(BINDIR)/$(PROJECT).lst
+	$(SIZE) $(BINDIR)/$(PROJECT).elf
+
+
+# Generates compilation rules for the directory in $1
+#
+# Note to self: The double-dollar sign escapes the $ so that it doesn't get
+# evaluated when this function is generated, but instead gets evaluated when
+# Make is actually making.
+define build_compile_rules
+$$(OBJDIR)/%.o: $1/%.c Makefile
+	@mkdir -p $$(dir $$@)
+	$$(CC) $$(GCFLAGS) -MMD -c $$< -o $$@
+$$(OBJDIR)/%.o: $1/%.s Makefile
+	@mkdir -p $$(dir $$@)
+	$$(AS) $$(ASFLAGS) -o $$@ $$<
+endef
+
+# Generate rules for each source directory
+$(foreach DIR,$(SRCDIRS),$(eval $(call build_compile_rules,$(DIR))))
+
+-include $(DEP)
+
+# Ensure generated objects get run first
+$(OBJ): | $(GEN_TARGETS)
+
