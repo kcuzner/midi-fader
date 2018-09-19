@@ -248,8 +248,15 @@ void mackie_tick()
     }
 }
 
-void hook_usb_send_complete()
+void hook_usb_midi_send_complete()
 {
+    if (mackie_status.last_sent_tick + USB_MIDI_TX_INTERVAL_MS + 1 < systick_count)
+    {
+        // We just sent data and it's been a while.
+        // Request that the entire control state is resent.
+        mackie_status.fdr_update = 0xFF;
+        mackie_status.btn_update = 0xFF;
+    }
     mackie_status.last_sent_tick = systick_count;
 }
 
