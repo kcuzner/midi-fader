@@ -61,6 +61,8 @@ typedef struct {
     uint16_t cc_on;
     uint16_t cc_off;
     uint16_t note;
+    uint16_t note_vel;
+    uint16_t style;
 } CfgButtonParameters;
 
 #define CFG_BTN_PARAMS(IDX) {\
@@ -70,6 +72,8 @@ typedef struct {
     .cc_on = CFG_PARAM(BTN, IDX, CC_ON),\
     .cc_off = CFG_PARAM(BTN, IDX, CC_OFF),\
     .note = CFG_PARAM(BTN, IDX, NOTE),\
+    .note_vel = CFG_PARAM(BTN, IDX, NOTE_VEL),\
+    .style = CFG_PARAM(BTN, IDX, STYLE),\
 }
 
 /**
@@ -166,6 +170,16 @@ uint8_t configuration_btn_cc_off(uint8_t button, Error err)
 uint8_t configuration_btn_note(uint8_t button, Error err)
 {
     CFG_READ(uint8_t, cfg_button_params, button, note);
+}
+
+uint8_t configuration_btn_note_vel(uint8_t button, Error err)
+{
+    CFG_READ(uint8_t, cfg_button_params, button, note_vel);
+}
+
+uint8_t configuration_btn_style(uint8_t button, Error err)
+{
+    CFG_READ(uint8_t, cfg_button_params, button, style);
 }
 
 uint8_t configuration_fdr_channel(uint8_t fader, Error err)

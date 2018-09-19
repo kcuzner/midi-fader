@@ -205,9 +205,9 @@ void buttons_init(void)
 uint8_t buttons_get_count(void)
 {
     uint8_t i;
-    for (i = 1; i < 5; i++)
+    for (i = 0; i < 4; i++)
     {
-        if (!buttons_status[i-1])
+        if (!buttons_status[i])
             break;
     }
     // buttons always come in pairs

@@ -15,6 +15,9 @@
 #define CFG_MODE_NOTE 1
 #define CFG_MODE_PITCH 2
 
+#define CFG_BTN_MOM 0
+#define CFG_BTN_TOG 1
+
 #define CONFIGURATION_HID_GET_PARAM 0x40
 #define CONFIGURATION_HID_SET_PARAM 0x80
 
@@ -52,6 +55,16 @@ uint8_t configuration_btn_cc_off(uint8_t button, Error err);
  * Gets the configured note for a button
  */
 uint8_t configuration_btn_note(uint8_t button, Error err);
+
+/**
+ * Gets the configured note velocity for a button
+ */
+uint8_t configuration_btn_note_vel(uint8_t button, Error err);
+
+/**
+ * Gets the configured button style
+ */
+uint8_t configuration_btn_style(uint8_t button, Error err);
 
 /**
  * Gets the configured channel for a fader

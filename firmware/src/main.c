@@ -16,6 +16,7 @@
 #include "fader.h"
 #include "buttons.h"
 #include "systick.h"
+#include "mackie.h"
 
 #include "_gen_usb_desc.h"
 
@@ -86,22 +87,15 @@ const USBApplicationSetup setup = {
 
 const USBApplicationSetup *usb_app_setup = &setup;
 
-static volatile uint8_t send_midi = 0;
+static volatile uint32_t tick_count = 0;
 static void update_tick(void)
 {
-    static uint32_t count = 0;
-    if (count++ < 10)
-        return;
-
-    count = 0;
-    send_midi = 1;
+    tick_count++;
 }
 
 uint8_t buf[16];
 int main()
 {
-    ERROR_INST(err);
-
     osc_request_hsi8();
 
     systick_init();
@@ -109,33 +103,19 @@ int main()
     usb_init();
     fader_init();
     buttons_init();
+    mackie_init();
 
-    systick_subscribe(&update_tick);
 
     // Small delay to force a USB reset
-    // TODO: Make this timed
     usb_disable();
-    for (uint32_t i = 0; i < 0xFFF; i++) { }
+    tick_count = 0;
+    systick_subscribe(&update_tick);
+    while (tick_count < 20) { } //at least 10ms needed, so we do 20ms
     usb_enable();
-
-    uint8_t control[] = {
-        0xB0,
-        7,
-        64,
-    };
-
 
     while (1)
     {
-        if (send_midi)
-        {
-            send_midi = 0;
-            control[2]++;
-            control[2] &= 0x7F;
-            usb_midi_send(MIDI_CTRL, control, sizeof(control), USB_MIDI_NOBLOCK);
-        }
-
-        buttons_write_leds(buttons_read());
+        mackie_tick();
     }
 
     return 0;

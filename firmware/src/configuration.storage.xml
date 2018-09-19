@@ -11,6 +11,8 @@
     <value name="BTN0_MODE" parameter="0x4004" type="uint8">CFG_MODE_NOTE</value>
     <value name="BTN0_CC" parameter="0x4005" type="uint8">64</value>
     <value name="BTN0_NOTE" parameter="0x4006" type="uint8">60</value>
+    <value name="BTN0_NOTE_VEL" parameter="0x4007" type="uint8">127</value>
+    <value name="BTN0_STYLE" parameter="0x4008" type="uint8">CFG_BTN_MOM</value>
 
     <value name="BTN1_CH" parameter="0x4101" type="uint8">1</value>
     <value name="BTN1_CC_ON" parameter="0x4102" type="uint8">127</value>
@@ -18,6 +20,8 @@
     <value name="BTN1_MODE" parameter="0x4104" type="uint8">CFG_MODE_NOTE</value>
     <value name="BTN1_CC" parameter="0x4105" type="uint8">64</value>
     <value name="BTN1_NOTE" parameter="0x4106" type="uint8">61</value>
+    <value name="BTN1_NOTE_VEL" parameter="0x4107" type="uint8">127</value>
+    <value name="BTN1_STYLE" parameter="0x4108" type="uint8">CFG_BTN_MOM</value>
 
     <value name="BTN2_CH" parameter="0x4201" type="uint8">1</value>
     <value name="BTN2_CC_ON" parameter="0x4202" type="uint8">127</value>
@@ -25,6 +29,8 @@
     <value name="BTN2_MODE" parameter="0x4204" type="uint8">CFG_MODE_NOTE</value>
     <value name="BTN2_CC" parameter="0x4205" type="uint8">64</value>
     <value name="BTN2_NOTE" parameter="0x4206" type="uint8">62</value>
+    <value name="BTN2_NOTE_VEL" parameter="0x4207" type="uint8">127</value>
+    <value name="BTN2_STYLE" parameter="0x4208" type="uint8">CFG_BTN_MOM</value>
 
     <value name="BTN3_CH" parameter="0x4301" type="uint8">1</value>
     <value name="BTN3_CC_ON" parameter="0x4302" type="uint8">127</value>
@@ -32,6 +38,8 @@
     <value name="BTN3_MODE" parameter="0x4304" type="uint8">CFG_MODE_NOTE</value>
     <value name="BTN3_CC" parameter="0x4305" type="uint8">64</value>
     <value name="BTN3_NOTE" parameter="0x4306" type="uint8">63</value>
+    <value name="BTN3_NOTE_VEL" parameter="0x4307" type="uint8">127</value>
+    <value name="BTN3_STYLE" parameter="0x4308" type="uint8">CFG_BTN_MOM</value>
 
     <value name="BTN4_CH" parameter="0x4401" type="uint8">1</value>
     <value name="BTN4_CC_ON" parameter="0x4402" type="uint8">127</value>
@@ -39,6 +47,8 @@
     <value name="BTN4_MODE" parameter="0x4404" type="uint8">CFG_MODE_NOTE</value>
     <value name="BTN4_CC" parameter="0x4405" type="uint8">64</value>
     <value name="BTN4_NOTE" parameter="0x4406" type="uint8">64</value>
+    <value name="BTN4_NOTE_VEL" parameter="0x4407" type="uint8">127</value>
+    <value name="BTN4_STYLE" parameter="0x4408" type="uint8">CFG_BTN_MOM</value>
 
     <value name="BTN5_CH" parameter="0x4501" type="uint8">1</value>
     <value name="BTN5_CC_ON" parameter="0x4502" type="uint8">127</value>
@@ -46,6 +56,8 @@
     <value name="BTN5_MODE" parameter="0x4504" type="uint8">CFG_MODE_NOTE</value>
     <value name="BTN5_CC" parameter="0x4505" type="uint8">64</value>
     <value name="BTN5_NOTE" parameter="0x4506" type="uint8">65</value>
+    <value name="BTN5_NOTE_VEL" parameter="0x4507" type="uint8">127</value>
+    <value name="BTN5_STYLE" parameter="0x4508" type="uint8">CFG_BTN_MOM</value>
 
     <value name="BTN6_CH" parameter="0x4601" type="uint8">1</value>
     <value name="BTN6_CC_ON" parameter="0x4602" type="uint8">127</value>
@@ -53,6 +65,8 @@
     <value name="BTN6_MODE" parameter="0x4604" type="uint8">CFG_MODE_NOTE</value>
     <value name="BTN6_CC" parameter="0x4605" type="uint8">64</value>
     <value name="BTN6_NOTE" parameter="0x4606" type="uint8">66</value>
+    <value name="BTN6_NOTE_VEL" parameter="0x4607" type="uint8">127</value>
+    <value name="BTN6_STYLE" parameter="0x4608" type="uint8">CFG_BTN_MOM</value>
 
     <value name="BTN7_CH" parameter="0x4701" type="uint8">1</value>
     <value name="BTN7_CC_ON" parameter="0x4702" type="uint8">127</value>
@@ -60,6 +74,8 @@
     <value name="BTN7_MODE" parameter="0x4704" type="uint8">CFG_MODE_NOTE</value>
     <value name="BTN7_CC" parameter="0x4705" type="uint8">64</value>
     <value name="BTN7_NOTE" parameter="0x4706" type="uint8">67</value>
+    <value name="BTN7_NOTE_VEL" parameter="0x4707" type="uint8">127</value>
+    <value name="BTN7_STYLE" parameter="0x4708" type="uint8">CFG_BTN_MOM</value>
 
     <value name="FDR0_CH" parameter="0x2001" type="uint8">1</value>
     <value name="FDR0_MODE" parameter="0x2002" type="uint8">CFG_MODE_PITCH</value>
