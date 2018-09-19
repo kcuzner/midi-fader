@@ -23,10 +23,19 @@
  * real quick.
  */
 
+#define FADER_CHANNELS 8
+
+/**
+ * A basic averaging filter is implemented by simply averaging every Nth
+ * element of the fader data. This should be a power of two for fast
+ * division.
+ */
+#define FADER_AVERAGES 16
+
 /**
  * Target for the DMA, contains the latest fader data
  */
-static uint16_t fader_data[8];
+static uint16_t fader_data[FADER_CHANNELS * FADER_AVERAGES];
 
 void fader_init(void)
 {
@@ -75,7 +84,7 @@ void fader_init(void)
     ADC1->SMPR = ADC_SMPR_SMP_0 | ADC_SMPR_SMP_1 | ADC_SMPR_SMP_2;
     DMA1_Channel1->CPAR = (uint32_t)(&ADC1->DR);
     DMA1_Channel1->CMAR = (uint32_t)(fader_data);
-    DMA1_Channel1->CNDTR = 8;
+    DMA1_Channel1->CNDTR = sizeof(fader_data) / sizeof(fader_data[0]);
     DMA1_Channel1->CCR = DMA_CCR_MINC | DMA_CCR_MSIZE_0 | DMA_CCR_PSIZE_0 |
         DMA_CCR_TEIE | DMA_CCR_CIRC;
     DMA1_Channel1->CCR |= DMA_CCR_EN;
@@ -88,9 +97,15 @@ void fader_init(void)
 
 uint16_t fader_get_value(uint8_t channel)
 {
-    if (channel > 7)
+    if (channel > FADER_CHANNELS - 1)
         return 0;
-    return fader_data[channel];
+    uint32_t accumulator = 0;
+    for (uint32_t i = channel; i < sizeof(fader_data)/sizeof(fader_data[0]); i += FADER_CHANNELS)
+    {
+        accumulator += fader_data[i];
+    }
+    accumulator /= FADER_AVERAGES;
+    return accumulator;
 }
 
 static uint32_t conversions = 0;
