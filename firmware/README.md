@@ -10,7 +10,7 @@ microcontroller and has the following features:
 - Writes up to 8 attached shift registers for LED outputs
 - Reads up to 8 analog inputs
 - Completely configurable in terms of what it sends
-  - Emulates a Mackie control (WIP)
+  - Emulates a Mackie control
 
 ## Build Prerequisites
 
