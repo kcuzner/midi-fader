@@ -1,0 +1,5 @@
+<!-- Common configuration for all items -->
+<storage>
+    <value name="BOOTLOADER_MAGIC" parameter="0x1000" type="uint32">0xFFFFFFFF</value>
+</storage>
+
