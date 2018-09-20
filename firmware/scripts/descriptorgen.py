@@ -181,6 +181,7 @@ class Descriptor(TagHandler):
         self.first = attrib_bool(el, 'first')
         self.parentid = el.attrib['childof'] if 'childof' in el.attrib else None
         self.wIndex = int(el.attrib['wIndex'], 0) if 'wIndex' in el.attrib else 0
+        self.order = int(el.attrib['order'], 0) if 'order' in el.attrib else 0 # Highest numbers outputted first
         super().__init__(el, parent)
     @property
     def index(self):
@@ -614,12 +615,13 @@ class DescriptorCollection(object):
  * {}
  *****************************************************************************/
  """.format(' '.join(sys.argv))
-        for typenum, descriptors in self.top.items():
-            for d in descriptors:
-                yield 'static const USB_DATA_ALIGN uint8_t {}[] = {{'.format(d.id)
-                # indent the descriptor slightly
-                yield '  ' + d.to_source().replace('\n', '\n  ')
-                yield '};\n'
+        all_desc = reversed(
+                sorted([d for tn, ds in self.top.items() for d in ds], key=lambda d: d.order))
+        for d in all_desc:
+            yield 'static const USB_DATA_ALIGN uint8_t {}[] = {{'.format(d.id)
+            # indent the descriptor slightly
+            yield '  ' + d.to_source().replace('\n', '\n  ')
+            yield '};\n'
         yield 'const USBDescriptorEntry usb_descriptors[] = {'
         for typenum, descriptors in self.top.items():
             for d in descriptors:

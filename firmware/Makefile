@@ -10,12 +10,12 @@
 PROJECT = midi-fader
 
 # Project Structure
-SRCDIRS = src cmsis/src
-GENSRCDIRS = src
+SRCDIRS = src cmsis/src common/src
+GENSRCDIRS = src common/src
 BINDIR = bin
 OBJDIR = obj
 GENDIR = obj/gen
-INCDIRS = include cmsis/include
+INCDIRS = include cmsis/include common/include
 
 # Project target
 CPU = cortex-m0
