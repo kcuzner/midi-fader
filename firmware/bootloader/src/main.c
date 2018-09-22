@@ -4,14 +4,12 @@
  * Kevin Cuzner
  */
 
-#include "stm32l0xx.h"
-#include "system_stm32l0xx.h"
+#include "stm32f0xx.h"
 
 #include "usb.h"
 #include "osc.h"
 #include "usb_hid.h"
 #include "bootloader.h"
-#include "power.h"
 
 /**
  * <descriptor id="device" type="0x01">
@@ -77,7 +75,7 @@ int main(void)
 
     usb_init();
 
-    osc_request_hsi16();
+    osc_request_hsi8();
     usb_enable();
 
     bootloader_run();

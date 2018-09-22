@@ -6,9 +6,12 @@
 
 #include "bootloader.h"
 
-#include "stm32l0xx.h"
+#include "stm32f0xx.h"
 #include "nvm.h"
 #include "usb_hid.h"
+#include "storage.h"
+#include "error.h"
+#include "_gen_storage.h"
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -19,9 +22,8 @@
  * - Any watchdog reset
  * - Any soft reset
  * - A pin reset (aka manual reset)
- * - A firewall reset
  */
-#define BOOTLOADER_RCC_CSR_ENTRY_MASK (RCC_CSR_WWDGRSTF | RCC_CSR_IWDGRSTF | RCC_CSR_SFTRSTF | RCC_CSR_PINRSTF | RCC_CSR_FWRSTF)
+#define BOOTLOADER_RCC_CSR_ENTRY_MASK (RCC_CSR_WWDGRSTF | RCC_CSR_IWDGRSTF | RCC_CSR_SFTRSTF | RCC_CSR_PINRSTF)
 
 /**
  * Magic code value to make the bootloader ignore any of the entry bits set in
@@ -30,16 +32,13 @@
  */
 #define BOOTLOADER_MAGIC_SKIP 0x3C65A95A
 
-
-static _EEPROM struct {
-    uint32_t magic_code;
-    union {
-        uint32_t *user_vtor;
-        uint32_t user_vtor_value;
-    };
-} bootloader_persistent_state;
-
-typedef enum { ERR_NONE = 0, ERR_FSM = 1 << 0, ERR_COMMAND = 1 << 1, ERR_BAD_ADDR = 1 << 2, ERR_BAD_CRC32 = 1 << 3, ERR_WRITE = 1 << 4, ERR_SHORT = 1 << 5, ERR_VERIFY = 1 << 6 } BootloaderError;
+#define BOOTLOADER_ERR_FSM -3001
+#define BOOTLOADER_ERR_COMMAND -3002
+#define BOOTLOADER_ERR_BAD_ADDR -3003
+#define BOOTLOADER_ERR_BAD_CRC32 -3004
+#define BOOTLOADER_ERR_WRITE -3005
+#define BOOTLOADER_ERR_SHORT -3006
+#define BOOTLOADER_ERR_VERIFY -3007
 
 #define CMD_RESET 0x00000000
 #define CMD_PROG  0x00000080
@@ -51,7 +50,7 @@ static union {
     uint32_t buffer[16];
     struct {
         uint32_t last_command;
-        uint32_t flags;
+        uint32_t status;
         uint32_t crc32_lower;
         uint32_t crc32_upper;
         uint8_t data[48];
@@ -60,9 +59,10 @@ static union {
 
 union {
     uint32_t buffer[16];
+    uint16_t buffer_hw[32];
     struct {
         uint32_t command;
-        uint32_t *address;
+        uint16_t *address;
         uint32_t crc32_lower;
         uint32_t crc32_upper;
     };
@@ -86,7 +86,7 @@ typedef struct {
 } BootloaderFsmEntry;
 
 static volatile struct {
-    uint32_t *address;
+    uint16_t *address;
     uint32_t crc32_lower;
     uint32_t crc32_upper;
     BootloaderState next_state; //used when sending a status report
@@ -97,24 +97,24 @@ static volatile struct {
  * that if the EEPROM write performed during this function fails, it will erase
  * the user_vector_value to prevent booting into a bad program.
  */
-static bool bootloader_reset_into_user_prog(void)
+static void bootloader_reset_into_user_prog(Error err)
 {
     //at this point, if a reset occurs we will still enter bootloader mode
 
     //write the magic bootloader-skip value so we can perform a reset
-    if (!nvm_eeprom_write_w(&bootloader_persistent_state.magic_code, BOOTLOADER_MAGIC_SKIP))
+    uint32_t buf = BOOTLOADER_MAGIC_SKIP;
+    storage_write(STORAGE_BOOTLOADER_MAGIC, &buf, sizeof(buf), err);
+    if (ERROR_IS_FATAL(err))
     {
-        nvm_eeprom_write_w(&bootloader_persistent_state.user_vtor_value, 0);
-        return false;
+        ERROR_INST(err_temp);
+        buf = 0;
+        storage_write(STORAGE_BOOTLOADER_USER_VTOR, &buf, sizeof(buf), &err_temp);
+        return;
     }
-
     //at this point, if a reset occurs we will not enter bootloader mode. We have entered the danger zone.
 
     //perform the system reset
     NVIC_SystemReset();
-
-    //this shouldn't happen, but whatever
-    return true;
 }
 
 /**
@@ -143,30 +143,50 @@ static BootloaderState bootloader_enter_reset(void)
  */
 static BootloaderState bootloader_enter_prog(void)
 {
+    ERROR_INST(err);
+
     bootloader_state.address = out_report.address;
     bootloader_state.crc32_lower = out_report.crc32_lower;
     bootloader_state.crc32_upper = out_report.crc32_upper;
 
-    //if needed, erase the previous entry point
-    if (bootloader_persistent_state.user_vtor)
-    {
-        nvm_eeprom_write_w(&bootloader_persistent_state.user_vtor_value, 0);
-    }
-
     memset(in_report.buffer, 0, sizeof(in_report));
     in_report.last_command = CMD_PROG;
+
+    //if needed, erase the previous entry point
+    uint32_t storage_buf;
+    size_t len = sizeof(storage_buf);
+    storage_read(STORAGE_BOOTLOADER_USER_VTOR, &storage_buf, &len, &err);
+    if (ERROR_IS_FATAL(&err))
+        goto done;
+    if (storage_buf)
+    {
+        storage_buf = 0;
+        storage_write(STORAGE_BOOTLOADER_USER_VTOR, &storage_buf, sizeof(storage_buf), &err);
+    }
+    if (ERROR_IS_FATAL(&err))
+        goto done;
 
     uint32_t address = (uint32_t)bootloader_state.address;
     //determine if the address is aligned and in range
     if ((address & 0x7F) || (address < FLASH_LOWER_BOUND) || (address > FLASH_UPPER_BOUND))
     {
-        in_report.flags = ERR_BAD_ADDR;
-        return bootloader_send_status(ST_RESET);
+        ERROR_SET(&err, BOOTLOADER_ERR_BAD_ADDR);
+        in_report.status = BOOTLOADER_ERR_BAD_ADDR;
     }
     else
     {
         //erase the page
-        nvm_flash_erase_page(bootloader_state.address);
+        nvm_flash_erase_page(bootloader_state.address, &err);
+    }
+
+done:
+    if (ERROR_IS_FATAL(&err))
+    {
+        in_report.status = err;
+        return bootloader_send_status(ST_RESET);
+    }
+    else
+    {
         return bootloader_send_status(ST_LPROG);
     }
 }
@@ -188,14 +208,14 @@ static BootloaderState bootloader_enter_read(void)
  */
 static BootloaderState bootloader_exit(void)
 {
-    BootloaderError error_flags = ERR_NONE;
+    ERROR_INST(err);
 
     memset(in_report.buffer, 0, sizeof(in_report));
     in_report.last_command = CMD_EXIT;
     //ensure we have somewhere to start the program
     if (!out_report.address)
     {
-        error_flags = ERR_BAD_ADDR;
+        ERROR_SET(&err, BOOTLOADER_ERR_BAD_ADDR);
         goto error;
     }
 
@@ -203,19 +223,19 @@ static BootloaderState bootloader_exit(void)
     uint32_t address = (uint32_t)out_report.address;
     if ((address < FLASH_LOWER_BOUND) || (address > FLASH_UPPER_BOUND))
     {
-        error_flags = ERR_BAD_ADDR;
+        ERROR_SET(&err, BOOTLOADER_ERR_BAD_ADDR);
         goto error;
     }
-    if (!nvm_eeprom_write_w(&bootloader_persistent_state.user_vtor_value, address))
+    storage_write(STORAGE_BOOTLOADER_USER_VTOR, &address, sizeof(address), &err);
+    if (ERROR_IS_FATAL(&err))
     {
-        error_flags = ERR_WRITE;
         goto error;
     }
 
     //perform the system reset
-    if (!bootloader_reset_into_user_prog())
+    bootloader_reset_into_user_prog(&err);
+    if (ERROR_IS_FATAL(&err))
     {
-        error_flags = ERR_WRITE;
         goto error;
     }
 
@@ -223,26 +243,28 @@ static BootloaderState bootloader_exit(void)
     return ST_RESET;
 
 error:
-    in_report.flags = error_flags;
+    in_report.status = err;
     return bootloader_send_status(ST_RESET);
 }
 
 static BootloaderState bootloader_abort(void)
 {
-    BootloaderError error_flags = ERR_NONE;
+    ERROR_INST(err);
     memset(in_report.buffer, 0, sizeof(in_report));
     in_report.last_command = CMD_ABORT;
 
-    if (!bootloader_persistent_state.user_vtor_value)
+    uint32_t user_vtor = 0;
+    size_t len = sizeof(user_vtor);
+    storage_read(STORAGE_BOOTLOADER_USER_VTOR, &user_vtor, &len, &err);
+    if (ERROR_IS_FATAL(&err))
     {
-        error_flags = ERR_BAD_ADDR;
         goto error;
     }
 
     //perform the system reset
-    if (!bootloader_reset_into_user_prog())
+    bootloader_reset_into_user_prog(&err);
+    if (ERROR_IS_FATAL(&err))
     {
-        error_flags = ERR_WRITE;
         goto error;
     }
 
@@ -250,7 +272,7 @@ static BootloaderState bootloader_abort(void)
     return ST_RESET;
 
 error:
-    in_report.flags = error_flags;
+    in_report.status = err;
     return bootloader_send_status(ST_RESET);
 }
 
@@ -265,7 +287,6 @@ static BootloaderState bootloader_fsm_reset(BootloaderEvent ev)
     switch (ev)
     {
     case EV_HID_OUT:
-        GPIOB->BSRR = GPIO_BSRR_BR_7;
         if (out_report.command == CMD_RESET)
         {
             return bootloader_enter_reset();
@@ -291,20 +312,19 @@ static BootloaderState bootloader_fsm_reset(BootloaderEvent ev)
         {
             memset(in_report.buffer, 0, sizeof(in_report));
             in_report.last_command = out_report.command;
-            in_report.flags = ERR_COMMAND;
+            in_report.status = BOOTLOADER_ERR_COMMAND;
             return bootloader_send_status(ST_RESET);
         }
         break;
     default:
         memset(in_report.buffer, 0, sizeof(in_report));
-        in_report.flags = ERR_FSM;
+        in_report.status = BOOTLOADER_ERR_FSM;
         return bootloader_send_status(ST_RESET);
     }
 }
 
 static BootloaderState bootloader_fsm_status(BootloaderEvent ev)
 {
-    GPIOB->BSRR = GPIO_BSRR_BS_7;
     usb_hid_receive(&out_report_data);
     return bootloader_state.next_state;
 }
@@ -315,12 +335,12 @@ static BootloaderState bootloader_fsm_status(BootloaderEvent ev)
 static BootloaderState bootloader_fsm_program(bool upper, BootloaderEvent ev)
 {
     uint32_t i, crc32, computed_crc32;
-    uint32_t *address;
-    BootloaderError error_flags = ERR_NONE;
+    uint16_t *address;
+    ERROR_INST(err);
 
     if (ev != EV_HID_OUT)
     {
-        error_flags = ERR_FSM;
+        ERROR_SET(&err, BOOTLOADER_ERR_FSM);
         goto error;
     }
 
@@ -328,7 +348,6 @@ static BootloaderState bootloader_fsm_program(bool upper, BootloaderEvent ev)
 
     //check the CRC32 (to avoid unexpected programming events)
     CRC->CR |= CRC_CR_RESET;
-    volatile uint8_t *dr = &CRC->DR;
     for (i = 0; i < 16; i++)
     {
         CRC->DR = out_report.buffer[i];
@@ -340,15 +359,23 @@ static BootloaderState bootloader_fsm_program(bool upper, BootloaderEvent ev)
         in_report.crc32_lower = computed_crc32;
     if (crc32 != computed_crc32)
     {
-        error_flags = ERR_BAD_CRC32;
+        ERROR_SET(&err, BOOTLOADER_ERR_BAD_CRC32);
         goto error;
     }
 
     //program the page
-    address = upper ? &bootloader_state.address[16] : bootloader_state.address;
-    if (!nvm_flash_write_half_page(address, out_report.buffer))
+    //
+    //NOTE: This was originally written for the STM32L0xx which programs by
+    //half-page. In the interest of time, I'm just faking that here by
+    //programming the 32 half-words in sequence since th STM32F0xx programs by
+    //halfword only.
+    address = upper ? &bootloader_state.address[32] : bootloader_state.address;
+    for (i = 0; i < 32; i++)
     {
-        error_flags = ERR_WRITE;
+        nvm_flash_write(&address[i], out_report.buffer_hw[i], &err);
+    }
+    if (ERROR_IS_FATAL(&err))
+    {
         goto error;
     }
 
@@ -357,17 +384,16 @@ static BootloaderState bootloader_fsm_program(bool upper, BootloaderEvent ev)
     {
         if (address[i] != out_report.buffer[i])
         {
-            error_flags = ERR_VERIFY;
+            ERROR_SET(&err, BOOTLOADER_ERR_VERIFY);
             goto error;
         }
     }
 
-    GPIOB->BSRR = GPIO_BSRR_BR_7;
-    in_report.flags = ERR_NONE;
+    in_report.status = err;
     return bootloader_send_status(upper ? ST_RESET : ST_UPROG);
 
 error:
-    in_report.flags = error_flags;
+    in_report.status = err;
     return bootloader_send_status(ST_RESET);
 }
 
@@ -390,14 +416,14 @@ static BootloaderState bootloader_fsm_uprog(BootloaderEvent ev)
 static BootloaderState bootloader_fsm_short(BootloaderEvent ev)
 {
     memset(in_report.buffer, 0, sizeof(in_report));
-    in_report.flags = ERR_SHORT;
+    in_report.status = BOOTLOADER_ERR_SHORT;
     return bootloader_send_status(ST_RESET);
 }
 
 static BootloaderState bootloader_fsm_error(BootloaderEvent ev)
 {
     memset(in_report.buffer, 0, sizeof(in_report));
-    in_report.flags = ERR_FSM;
+    in_report.status = BOOTLOADER_ERR_FSM;
     return bootloader_send_status(ST_RESET);
 }
 
@@ -414,16 +440,33 @@ static const BootloaderFsmEntry fsm[] = {
 
 void bootloader_init(void)
 {
+    ERROR_INST(err);
+    uint32_t user_vtor_value = 0;
+    uint32_t magic = 0;
+    size_t len = sizeof(user_vtor_value);
+    storage_read(STORAGE_BOOTLOADER_USER_VTOR, &user_vtor_value, &len, &err);
+    len = sizeof(magic);
+    storage_read(STORAGE_BOOTLOADER_MAGIC, &magic, &len, &err);
+
+    if (ERROR_IS_FATAL(&err))
+        return;
+
     //if the prog_start field is set and there are no entry bits set in the CSR (or the magic code is programmed appropriate), start the user program
-    if (bootloader_persistent_state.user_vtor &&
-            (!(RCC->CSR & BOOTLOADER_RCC_CSR_ENTRY_MASK) || bootloader_persistent_state.magic_code == BOOTLOADER_MAGIC_SKIP))
+    if (user_vtor_value &&
+            (!(RCC->CSR & BOOTLOADER_RCC_CSR_ENTRY_MASK) || magic == BOOTLOADER_MAGIC_SKIP))
     {
-        if (bootloader_persistent_state.magic_code)
-            nvm_eeprom_write_w(&bootloader_persistent_state.magic_code, 0);
+        if (magic)
+        {
+            magic = 0;
+            storage_write(STORAGE_BOOTLOADER_MAGIC, &magic, sizeof(magic), &err);
+        }
         __disable_irq();
-        uint32_t sp = bootloader_persistent_state.user_vtor[0];
-        uint32_t pc = bootloader_persistent_state.user_vtor[1];
-        SCB->VTOR = bootloader_persistent_state.user_vtor_value;
+
+        uint32_t *user_vtor = (uint32_t *)user_vtor_value;
+        uint32_t sp = user_vtor[0];
+        uint32_t pc = user_vtor[1];
+        //TODO: Fake the VTOR!
+        //SCB->VTOR = bootloader_persistent_state.user_vtor_value;
         __asm__ __volatile__("mov sp,%0\n\t"
                 "bx %1\n\t"
                 : /* no output */
@@ -438,12 +481,7 @@ void bootloader_run(void)
     RCC->CSR |= RCC_CSR_RMVF;
 
     //Enable clocks for the bootloader
-    RCC->IOPENR |= RCC_IOPENR_IOPAEN | RCC_IOPENR_IOPBEN;
     RCC->AHBENR |= RCC_AHBENR_CRCEN;
-    GPIOA->MODER &= ~GPIO_MODER_MODE5_1;
-    GPIOB->MODER &= ~GPIO_MODER_MODE7_1;
-    GPIOA->BSRR = GPIO_BSRR_BS_5;
-    GPIOB->BSRR = GPIO_BSRR_BS_7;
 
     //zlib configuration: Reverse 32-bit in, reverse out, default polynomial and init value
     //Note that the result will need to be inverted

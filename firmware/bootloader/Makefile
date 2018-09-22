@@ -11,6 +11,7 @@ PROJECT = midi-fader-bootloader
 SRCDIRS = src ../common/src ../cmsis/src
 GENSRCDIRS = src ../common/src
 INCDIRS = include ../cmsis/include ../common/include
+LDINCDIRS = ../
 SCRIPTDIR = ../scripts
 
 # Sources

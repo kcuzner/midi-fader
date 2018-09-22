@@ -10,6 +10,7 @@ BINDIR = bin
 OBJDIR = obj
 GENDIR = obj/gen
 INCDIRS = include
+LDINCDIRS =
 
 # Project target
 CPU = cortex-m0
@@ -26,12 +27,14 @@ ASM = $(foreach DIR,$(SRCDIRS),$(wildcard $(DIR)/*.s))
 
 # Include directories
 INCLUDE  = $(foreach DIR,$(INCDIRS),-I$(DIR)) -I$(GENDIR) -I.
+LDINCLUDE = $(foreach DIR,$(LDINCDIRS),-L$(DIR))
 
 # C Flags
 GCFLAGS  = -std=c11 -Wall -Os -fno-common -mthumb -mcpu=$(CPU) -DSTM32F042x6 --specs=nosys.specs --specs=nano.specs -g -Wa,-ahlms=$(addprefix $(OBJDIR)/,$(notdir $(<:.c=.lst)))
 GCFLAGS += -DUSB_DEBUG $(INCLUDE)
 CFLAGS  += $(GCFLAGS)
 LDFLAGS += -T$(LSCRIPT) -mthumb -mcpu=$(CPU) --specs=nosys.specs --specs=nano.specs -Wl,-Map,$(BINDIR)/$(PROJECT).map -Wl,--gc-sections
+LDFLAGS += $(LDINCLUDE)
 ASFLAGS += -mcpu=$(CPU)
 
 # Flashing
