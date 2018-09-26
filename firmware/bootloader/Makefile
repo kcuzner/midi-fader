@@ -1,4 +1,4 @@
-# Makefile for the LED Wristwatch Firmware
+# Makefile for the Midi-Fader Bootloader
 #
 # Kevin Cuzner
 #
@@ -8,7 +8,8 @@ include ../common/common-top.mak
 PROJECT = midi-fader-bootloader
 
 # Project Structure
-SRCDIRS = src ../common/src ../cmsis/src
+CSRCDIRS = src ../common/src ../cmsis/src
+SSRCDIRS = src ../common/src
 GENSRCDIRS = src ../common/src
 INCDIRS = include ../cmsis/include ../common/include
 LDINCDIRS = ../
@@ -32,7 +33,7 @@ gdb: $(BINDIR)/$(PROJECT).elf $(BINDIR)/openocd.pid
 	$(GDB) -ex "target remote localhost:3333" $(BINDIR)/$(PROJECT).elf
 
 stop:
-	echo shutdown | nc localhost 4444
+	-echo shutdown | nc localhost 4444
 
 clean: stop
 

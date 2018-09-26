@@ -533,3 +533,41 @@ void hook_usb_hid_out_report_received(const USBTransferData *report)
     }
 }
 
+/**
+ * Entry point for all exceptions which passes off execution to the appropriate
+ * handler. This adds some non-trivial overhead, but it does tail-call the
+ * handler and I think it's about as minimal as you can get for emulating the
+ * VTOR.
+ */
+void __attribute__((naked)) Bootloader_IRQHandler(void)
+{
+    __asm__ volatile (
+            " movs r0, #4\n" // Determine whether to use PSP or MSP...
+            " movs r1, lr\n"
+            " tst r0, r1\n"
+            " beq 1f\n"
+            " mrs r0, psp\n"
+            " b 2f\n"
+          "1:\n"
+            " mrs r0, msp\n"
+          "2:\n"
+            " ldr r1,[r0, #24]\n" // Grab the PC from the exception frame
+            " ldr r0,=0x08002000\n" // Subtract 0x08002000
+            " sub r1, r0\n"
+            " bvs 3f\n"
+            " ldr r0,=g_pfnVectors\n" // If PC was <0x08002000, use the bootloader's vector table as the table base
+            " b 4f\n"
+          "3:\n"
+            " ldr r0,=0x08002000\n" // Else, use 0x08002000 as the table base
+          "4:\n"
+            " ldr r1,=0xE000ED04\n" // Prepare to read the ICSR
+            " ldr r1,[r1]\n" // Load the ICSR
+            " mov r2,#63\n"  // Prepare to mask SCB_ICSC_VECTACTIVE (6 bits, Cortex-M0)
+            " and r1, r2\n"  // Mask the ICSR, r1 now contains the vector number
+            " lsl r1, #8\n"  // Multiply vector number by sizeof(function pointer)
+            " add r0, r1\n"  // Apply the offset to the table base
+            " ldr  r0,[r0]\n" // Read the function pointer value
+            " bx r0\n" // Aaaannd branch!
+            );
+}
+

@@ -18,8 +18,12 @@ void bootloader_init(void);
 /**
  * Runs the bootloader component
  */
-
 void bootloader_run(void);
+
+/**
+ * IRQ Handler for the bootloader
+ */
+void Bootloader_IRQHandler(void);
 
 #endif //_BOOTLOADER_H_
 

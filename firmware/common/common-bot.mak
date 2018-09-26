@@ -77,17 +77,20 @@ $(BINDIR)/$(PROJECT).elf: $(ALL_OBJ) $(LSCRIPT)
 # Note to self: The double-dollar sign escapes the $ so that it doesn't get
 # evaluated when this function is generated, but instead gets evaluated when
 # Make is actually making.
-define build_compile_rules
+define build_gcc_rules
 $$(OBJDIR)/%.o: $1/%.c Makefile
 	@mkdir -p $$(dir $$@)
 	$$(CC) $$(GCFLAGS) -MMD -c $$< -o $$@
+endef
+define build_asm_rules
 $$(OBJDIR)/%.o: $1/%.s Makefile
 	@mkdir -p $$(dir $$@)
 	$$(AS) $$(ASFLAGS) -o $$@ $$<
 endef
 
 # Generate rules for each source directory
-$(foreach DIR,$(SRCDIRS),$(eval $(call build_compile_rules,$(DIR))))
+$(foreach DIR,$(CSRCDIRS),$(eval $(call build_gcc_rules,$(DIR))))
+$(foreach DIR,$(SSRCDIRS),$(eval $(call build_asm_rules,$(DIR))))
 
 -include $(DEP)
 

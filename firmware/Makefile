@@ -25,6 +25,8 @@ LSCRIPT = STM32F042X6.ld
 # Flashing
 OCDFLAGS = -f openocd/openocd.cfg
 
+GCFLAGS += -DUSB_DEBUG
+
 all:: $(BINDIR)/$(PROJECT).bin $(BINDIR)/$(PROJECT).hex
 
 install: $(BINDIR)/$(PROJECT).bin $(BINDIR)/openocd.pid

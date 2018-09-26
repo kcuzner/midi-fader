@@ -11,6 +11,8 @@ OBJDIR = obj
 GENDIR = obj/gen
 INCDIRS = include
 LDINCDIRS =
+CSRCDIRS = $(SRCDIRS)
+SSRCDIRS = $(SRCDIRS)
 
 # Project target
 CPU = cortex-m0
@@ -20,10 +22,10 @@ LSCRIPT = STM32F042X6.ld
 
 # Sources
 GENERATE =
-SRC = $(foreach DIR,$(SRCDIRS),$(wildcard $(DIR)/*.c))
+SRC = $(foreach DIR,$(CSRCDIRS),$(wildcard $(DIR)/*.c))
 GENSRC = $(foreach DIR,$(GENSRCDIRS),$(wildcard $(DIR)/*.c))
-STORAGESRC = $(foreach DIR,$(SRCDIRS),$(wildcard $(DIR)/*.storage.xml))
-ASM = $(foreach DIR,$(SRCDIRS),$(wildcard $(DIR)/*.s))
+STORAGESRC = $(foreach DIR,$(CSRCDIRS),$(wildcard $(DIR)/*.storage.xml))
+ASM = $(foreach DIR,$(SSRCDIRS),$(wildcard $(DIR)/*.s))
 
 # Include directories
 INCLUDE  = $(foreach DIR,$(INCDIRS),-I$(DIR)) -I$(GENDIR) -I.
@@ -31,7 +33,7 @@ LDINCLUDE = $(foreach DIR,$(LDINCDIRS),-L$(DIR))
 
 # C Flags
 GCFLAGS  = -std=c11 -Wall -Os -fno-common -mthumb -mcpu=$(CPU) -DSTM32F042x6 --specs=nosys.specs --specs=nano.specs -g -Wa,-ahlms=$(addprefix $(OBJDIR)/,$(notdir $(<:.c=.lst)))
-GCFLAGS += -DUSB_DEBUG $(INCLUDE)
+GCFLAGS += $(INCLUDE)
 CFLAGS  += $(GCFLAGS)
 LDFLAGS += -T$(LSCRIPT) -mthumb -mcpu=$(CPU) --specs=nosys.specs --specs=nano.specs -Wl,-Map,$(BINDIR)/$(PROJECT).map -Wl,--gc-sections
 LDFLAGS += $(LDINCLUDE)

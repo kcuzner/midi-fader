@@ -9,6 +9,7 @@
 #include "nvm.h"
 
 #include "stm32f0xx.h"
+#include "atomic.h"
 
 /**
  * Certain functions, such as flash write, are easier to do if the code is
@@ -90,9 +91,12 @@ void nvm_flash_write(uint16_t *addr, uint16_t data, Error err)
     if (ERROR_IS_FATAL(err))
         return;
 
-    nvm_unlock_flash();
-    nvm_flash_do_write(addr, data, err);
-    nvm_lock();
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+    {
+        nvm_unlock_flash();
+        nvm_flash_do_write(addr, data, err);
+        nvm_lock();
+    }
 }
 
 /**
@@ -142,8 +146,11 @@ void nvm_flash_erase_page(uint16_t *pageaddr, Error err)
     if (ERROR_IS_FATAL(err))
         return;
 
-    nvm_unlock_flash();
-    nvm_flash_do_erase_page(pageaddr, err);
-    nvm_lock();
+    ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+    {
+        nvm_unlock_flash();
+        nvm_flash_do_erase_page(pageaddr, err);
+        nvm_lock();
+    }
 }
 
