@@ -564,7 +564,7 @@ void __attribute__((naked)) Bootloader_IRQHandler(void)
             " ldr r1,[r1]\n" // Load the ICSR
             " mov r2,#63\n"  // Prepare to mask SCB_ICSC_VECTACTIVE (6 bits, Cortex-M0)
             " and r1, r2\n"  // Mask the ICSR, r1 now contains the vector number
-            " lsl r1, #8\n"  // Multiply vector number by sizeof(function pointer)
+            " lsl r1, #2\n"  // Multiply vector number by sizeof(function pointer)
             " add r0, r1\n"  // Apply the offset to the table base
             " ldr  r0,[r0]\n" // Read the function pointer value
             " bx r0\n" // Aaaannd branch!

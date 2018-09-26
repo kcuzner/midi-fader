@@ -156,9 +156,16 @@ Default_Handler:
 Infinite_Loop:
   b Infinite_Loop
   .size Default_Handler, .-Default_Handler
+
+/**
+ * Default vector table local to the bootloader. This is used by the
+ * emulated VTOR functionality to actually dispatch interrupts. It must
+ * be word-aligned since "ldr" is used to access it.
+ */
    .section .text.LocalVectors,"a",%progbits
   .type g_pfnVectors, %object
   .size g_pfnVectors, .-g_pfnVectors
+  .align 4
 
 g_pfnVectors:
   .word  _estack

@@ -65,7 +65,12 @@ OCDFLAGS = -f openocd/openocd.cfg
 OBJCOPY_FLAGS = --remove-section .storage
 BUILD_OBJCOPY_FLAGS = --add-section .bootloader=$(BOOT_BINDIR)/$(BOOT_BINARY).bin\
 	--set-section-flags .bootloader=alloc,contents,load,readonly\
-	--change-section-address .bootloader=0x08000000
+	--change-section-address .bootloader=0x08000000\
+	--remove-section .text\
+	--remove-section .rodata\
+	--remove-section .init_array\
+	--remove-section .fini_array\
+	--remove-section .data
 
 # Tools
 GDB = arm-none-eabi-gdb
@@ -83,6 +88,9 @@ update: $(BINDIR)/$(BINARY).hex $(BINDIR)/openocd.pid
 
 gdb: $(BINDIR)/openocd.pid
 	$(GDB) -ex "target remote localhost:3333" -ex "add-symbol-file $(BOOT_BINDIR)/$(BOOT_BINARY).elf 0x08000000" $(BINDIR)/$(BINARY).elf
+
+gdb-bootloader: $(BINDIR)/openocd.pid
+	$(GDB) -ex "target remote localhost:3333" $(BOOT_BINDIR)/$(BOOT_BINARY).elf
 
 stop:
 	-echo shutdown | nc localhost 4444
