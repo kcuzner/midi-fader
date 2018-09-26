@@ -38,7 +38,7 @@ clean:
 	$(RM) $(OBJDIR)
 
 size:
-	$(SIZE) $(BINDIR)/$(PROJECT).elf
+	$(SIZE) $(BINDIR)/$(BINARY).elf
 
 #
 # Code generation
@@ -59,17 +59,17 @@ $(GENDIR)/$(GENERATE_STORAGE_SRC): $(STORAGESRC) $(STORAGEGEN_SCRIPT)
 # Compilation
 #
 
-$(BINDIR)/$(PROJECT).hex: $(BINDIR)/$(PROJECT).elf
-	$(OBJCOPY) -O ihex $(BINDIR)/$(PROJECT).elf $(BINDIR)/$(PROJECT).hex
+$(BINDIR)/$(BINARY).hex: $(BINDIR)/$(BINARY).elf
+	$(OBJCOPY) -O ihex $(OBJCOPY_FLAGS) $(BINDIR)/$(BINARY).elf $(BINDIR)/$(BINARY).hex
 
-$(BINDIR)/$(PROJECT).bin: $(BINDIR)/$(PROJECT).elf
-	$(OBJCOPY) -O binary $(BINDIR)/$(PROJECT).elf $(BINDIR)/$(PROJECT).bin
+$(BINDIR)/$(BINARY).bin: $(BINDIR)/$(BINARY).elf
+	$(OBJCOPY) -O binary $(OBJCOPY_FLAGS) $(BINDIR)/$(BINARY).elf $(BINDIR)/$(BINARY).bin
 
-$(BINDIR)/$(PROJECT).elf: $(ALL_OBJ) $(LSCRIPT)
+$(BINDIR)/$(BINARY).elf: $(ALL_OBJ) $(LSCRIPT)
 	@mkdir -p $(dir $@)
-	$(CC) $(ALL_OBJ) $(LDFLAGS) -o $(BINDIR)/$(PROJECT).elf
-	$(OBJDUMP) -D $(BINDIR)/$(PROJECT).elf > $(BINDIR)/$(PROJECT).lst
-	$(SIZE) $(BINDIR)/$(PROJECT).elf
+	$(CC) $(ALL_OBJ) $(LDFLAGS) -o $(BINDIR)/$(BINARY).elf
+	$(OBJDUMP) -D $(BINDIR)/$(BINARY).elf > $(BINDIR)/$(BINARY).lst
+	$(SIZE) $(BINDIR)/$(BINARY).elf
 
 
 # Generates compilation rules for the directory in $1

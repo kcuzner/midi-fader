@@ -45,8 +45,8 @@ ENTRY(Reset_Handler)
  * Direct usage of symbols allocated in the PMA may cause unexpected behavior.
  */
 
-_flash_origin = 0x08000000;
-_flash_length = 32K;
+_flash_origin = 0x08002000;
+_flash_length = 24K;
 _storage_size = 2K;
 
 MEMORY

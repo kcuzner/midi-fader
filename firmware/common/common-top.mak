@@ -3,6 +3,9 @@
 # It is intended that this is used for both the bootloader project and the
 # regular firmware project. There's a lot of shared logic.
 
+# Binary target
+BINARY = $(PROJECT)
+
 # Project structure
 SRCDIRS = src
 GENSRCDIRS = src
@@ -35,12 +38,15 @@ LDINCLUDE = $(foreach DIR,$(LDINCDIRS),-L$(DIR))
 GCFLAGS  = -std=c11 -Wall -Os -fno-common -mthumb -mcpu=$(CPU) -DSTM32F042x6 --specs=nosys.specs --specs=nano.specs -g -Wa,-ahlms=$(addprefix $(OBJDIR)/,$(notdir $(<:.c=.lst)))
 GCFLAGS += $(INCLUDE)
 CFLAGS  += $(GCFLAGS)
-LDFLAGS += -T$(LSCRIPT) -mthumb -mcpu=$(CPU) --specs=nosys.specs --specs=nano.specs -Wl,-Map,$(BINDIR)/$(PROJECT).map -Wl,--gc-sections
+LDFLAGS += -T$(LSCRIPT) -mthumb -mcpu=$(CPU) --specs=nosys.specs --specs=nano.specs -Wl,-Map,$(BINDIR)/$(BINARY).map -Wl,--gc-sections
 LDFLAGS += $(LDINCLUDE)
 ASFLAGS += -mcpu=$(CPU)
 
 # Flashing
 OCDFLAGS = -f openocd/openocd.cfg
+
+# Output manipulation
+OBJCOPY_FLAGS =
 
 # Tools
 CC = arm-none-eabi-gcc
@@ -50,7 +56,6 @@ LD = arm-none-eabi-ld
 OBJCOPY = arm-none-eabi-objcopy
 SIZE = arm-none-eabi-size --format=SysV
 OBJDUMP = arm-none-eabi-objdump
-GDB = arm-none-eabi-gdb
 OCD = openocd
 RM = rm -rf
 

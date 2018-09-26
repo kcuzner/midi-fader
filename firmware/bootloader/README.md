@@ -5,31 +5,23 @@ SWD beyond the first initial flashing of this image.
 
 ## Build instructions
 
-Prerequisites:
+**Prerequisites:**
 
  - arm-none-eabi-gcc
  - arm-none-eabi-binutils
  - python3
 
-To build:
+**To build:**
 
  1. Run `make` in this directory.
 
-To flash the device:
+**To install or debug:**
 
- 1. Connect the STLink to the device. Ensure your user has permissions to access
-    it.
- 2. Run `make install` in this directory.
-
-To debug the device:
-
- 1. Connect the STLink to the device. Ensure your user has permissions to access
-    it.
- 2. Run `make gdb` in this directory.
-
-To gracefully halt the openocd process started during install or debug:
-
- 1. Run `make stop` in this directory.
+Invoking `make` in this directory does not allow for actually flashing the
+device. Since the application which uses this bootloader has its very own
+"storage" segment, independent from the one generated here (which only contains
+a very small subset of the parameters in storage), all flashing and debugging
+should take place in the parent directory.
 
 ## Program Format
 
