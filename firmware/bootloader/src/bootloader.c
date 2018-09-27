@@ -477,7 +477,7 @@ void bootloader_init(void)
 {
     ERROR_INST(err);
 
-    bootloader_vtor = &g_pfnVectors;
+    bootloader_vtor = (uint32_t)(&g_pfnVectors);
 
     uint32_t user_vtor_value = 0;
     uint32_t magic = 0;

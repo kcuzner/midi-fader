@@ -11,6 +11,8 @@
 #include "usb_hid.h"
 #include "bootloader.h"
 
+#include <stddef.h>
+
 /**
  * <descriptor id="device" type="0x01">
  *  <length name="bLength" size="1" />
@@ -66,6 +68,17 @@ typedef struct __attribute__((packed))
 } WristwatchReport;
 
 static volatile uint8_t segment = 0;
+
+static const USBInterfaceListNode hid_interface_node = {
+    .interface = &hid_interface,
+    .next = NULL,
+};
+
+const USBApplicationSetup setup = {
+    .interface_list = &hid_interface_node,
+};
+
+const USBApplicationSetup *usb_app_setup = &setup;
 
 int main(void)
 {
