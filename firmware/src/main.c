@@ -18,6 +18,8 @@
 #include "systick.h"
 #include "mackie.h"
 
+#include "stm32f0xx.h"
+
 #include "_gen_usb_desc.h"
 
 /**
@@ -99,6 +101,8 @@ int main()
     osc_request_hsi8();
 
     systick_init();
+
+    __enable_irq();
 
     usb_init();
     fader_init();

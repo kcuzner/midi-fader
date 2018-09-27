@@ -53,7 +53,7 @@ MEMORY
 {
     FLASH (RX) : ORIGIN = _flash_origin, LENGTH = _flash_length - _storage_size
     FLASH_STORAGE (RX) : ORIGIN = (_flash_origin + _flash_length) - _storage_size, LENGTH = _flash_length
-    RAM (W!RX)  : ORIGIN = 0x20000000, LENGTH = 6K
+    RAM (W!RX)  : ORIGIN = 0x20000100, LENGTH = 6K - 256
     PMA (W)  : ORIGIN = 0x40006000, LENGTH = 1024 /* 512 x 16bit */
 }
 

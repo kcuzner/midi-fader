@@ -18,6 +18,13 @@
 #include <string.h>
 
 /**
+ * Places a symbol into the reserved RAM section. This RAM is not
+ * initialized and must be manually initialized before use.
+ */
+#define RSVD_SECTION ".rsvd.data,\"aw\",%nobits//"
+#define _RSVD __attribute__((used, section(RSVD_SECTION)))
+
+/**
  * Mask for RCC_CSR defining which bits may trigger an entry into bootloader mode:
  * - Any watchdog reset
  * - Any soft reset
@@ -438,9 +445,40 @@ static const BootloaderFsmEntry fsm[] = {
 };
 #define FSM_SIZE sizeof(fsm)/(sizeof(BootloaderFsmEntry))
 
+/**
+ * Returns 1 if the bootloader should start or 0 if the user program
+ * might be allowed to start
+ */
+static uint8_t bootloader_check_reset_entry_conditions(void)
+{
+    uint32_t csr = RCC->CSR;
+    // If any watchdog goes off or the soft reset occurs, the bootloader
+    // should run
+    if (csr & (RCC_CSR_WWDGRSTF | RCC_CSR_IWDGRSTF | RCC_CSR_SFTRSTF))
+    {
+        return 1;
+    }
+    // If there is a pin reset without a poweron reset, then the
+    // bootloader should run (note that this depends on the bootloader
+    // clearing the reset flags at boot)
+    if (!(csr & RCC_CSR_PORRSTF) && (csr & RCC_CSR_PINRSTF))
+    {
+        return 1;
+    }
+    // If we get this far, the user program might run
+    return 0;
+}
+
+static volatile _RSVD uint32_t bootloader_vtor;
+
+extern uint32_t *g_pfnVectors;
+
 void bootloader_init(void)
 {
     ERROR_INST(err);
+
+    bootloader_vtor = &g_pfnVectors;
+
     uint32_t user_vtor_value = 0;
     uint32_t magic = 0;
     size_t len = sizeof(user_vtor_value);
@@ -451,9 +489,13 @@ void bootloader_init(void)
     if (ERROR_IS_FATAL(&err))
         return;
 
+    uint8_t reset_entry = bootloader_check_reset_entry_conditions();
+    // Reset the entry flags
+    RCC->CSR |= RCC_CSR_RMVF;
+
     //if the prog_start field is set and there are no entry bits set in the CSR (or the magic code is programmed appropriate), start the user program
     if (user_vtor_value &&
-            (!(RCC->CSR & BOOTLOADER_RCC_CSR_ENTRY_MASK) || magic == BOOTLOADER_MAGIC_SKIP))
+            (!reset_entry || (magic == BOOTLOADER_MAGIC_SKIP)))
     {
         if (magic)
         {
@@ -465,8 +507,7 @@ void bootloader_init(void)
         uint32_t *user_vtor = (uint32_t *)user_vtor_value;
         uint32_t sp = user_vtor[0];
         uint32_t pc = user_vtor[1];
-        //TODO: Fake the VTOR!
-        //SCB->VTOR = bootloader_persistent_state.user_vtor_value;
+        bootloader_vtor = user_vtor_value;
         __asm__ __volatile__("mov sp,%0\n\t"
                 "bx %1\n\t"
                 : /* no output */
@@ -551,15 +592,8 @@ void __attribute__((naked)) Bootloader_IRQHandler(void)
           "1:\n"
             " mrs r0, msp\n"
           "2:\n"
-            " ldr r1,[r0, #24]\n" // Grab the PC from the exception frame
-            " ldr r0,=0x08002000\n" // Subtract 0x08002000
-            " sub r1, r0\n"
-            " bvs 3f\n"
-            " ldr r0,=g_pfnVectors\n" // If PC was <0x08002000, use the bootloader's vector table as the table base
-            " b 4f\n"
-          "3:\n"
-            " ldr r0,=0x08002000\n" // Else, use 0x08002000 as the table base
-          "4:\n"
+            " ldr r0,=bootloader_vtor\n" // Read the fake VTOR into r0
+            " ldr r0,[r0]\n"
             " ldr r1,=0xE000ED04\n" // Prepare to read the ICSR
             " ldr r1,[r1]\n" // Load the ICSR
             " mov r2,#63\n"  // Prepare to mask SCB_ICSC_VECTACTIVE (6 bits, Cortex-M0)

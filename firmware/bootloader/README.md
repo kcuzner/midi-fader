@@ -25,13 +25,16 @@ should take place in the parent directory.
 
 ## Program Format
 
-This bootloader lives in the first 8KB of program flash. Programs to be loaded
-through this bootloader must have their sections located in the following
-format:
+This bootloader lives in the first 8KB of program flash and reserves the first
+256 bytes of RAM. Programs to be loaded through this bootloader must have their
+sections located in the following format:
 
 ```
 Flash:
 0x08002000: User program (.text, .rodata, etc)
+
+RAM:
+0x20000100: User data until the end of memory
 
 Information block:
 All sections may be used by the program
@@ -41,7 +44,7 @@ All writes and reads to the bootloader section (0x08000000-0x08001FFF,
 0x08080000-0x080800FF) will be ignored and generate an appropriate status
 report.
 
-Firmware which writes to the first 256 bytes of EEPROM may cause the bootloader
+Firmware which writes to the first 256 bytes of RAM may cause the bootloader
 to behave unexpectedly.
 
 ## Programming Verification
