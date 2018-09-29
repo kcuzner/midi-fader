@@ -127,7 +127,12 @@ class ProgramPager(object):
             segment = self.segments[0]
             if segment[0] >= address + self.page_size:
                 break # segment not within page
-            next_data = segment[1][:(self.page_size - len(data))]
+            next_data = b''
+            if address + len(data) < segment[0]:
+                # There are missing addresses. Pad before adding the data
+                # appropriately.
+                next_data += b'\x00' * (segment[0] - (address + len(data)))
+            next_data += segment[1][:(self.page_size - len(data))]
             if len(next_data) < len(segment[1]):
                 self.segments[0] = (segment[0] + len(next_data),
                         segment[1][len(next_data):])
