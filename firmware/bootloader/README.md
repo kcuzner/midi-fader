@@ -130,9 +130,27 @@ user program, if one has already been programmed and no new programming commands
 have been received. Otherwise, a status report will be generated with an
 appropriate error flag.
 
+### Erasing the Flash
+
+The STM32F0xx erases by 1KB page. Prior to programming the flash, an erase
+command should be sent for each page:
+
+```
+Byte 0: 0x88
+Byte 1-3: 0x00
+Byte 4: Destination address bits 7-0 (bits 6-0 are ignored)
+Byte 5: Destination address bits 15-8
+Byte 6: Destination address bits 23-16
+Byte 7: Destination address bits 31-24
+Byte 8-63: N/A
+```
+
+Upon receipt of this command, the device will erase the 1KB page that the passed
+address lies within and issue a status report.
+
 ### Programming the Flash
 
-Programming the flash requires 3 reports to be sent: A write/erase command a
+Programming the flash requires 3 reports to be sent: A write command and
 two half-page OUT reports.
 
 The write command has the following format:
@@ -149,9 +167,9 @@ Byte 12-15: CRC32 of the 16 32-bit words from the upper page command to follow, 
 Byte 16-63: N/A
 ```
 
-Upon receipt of this command, the device will enter programming mode and
-initiate an erase of the referenced block. A status report will be generated
-once the erase has been completed.
+Upon receipt of this command, the device will enter programming mode verify the
+address that is to be written along with the erase state. The page must have
+been previously erased.
 
 The half-page command has the following format:
 

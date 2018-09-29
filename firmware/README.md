@@ -123,7 +123,7 @@ An IN report will contain the command number of the command it is responding to.
 Parameters can be IN, OUT, or both. The parameters will be echoed in the
 corresponding OUT report.
 
-#### Status
+#### Status (WIP)
 
 The Status command has the following format:
 
@@ -150,4 +150,14 @@ The Get Parameter command has the following format:
  - Parameter 1 (OUT): Parameter number
  - Parameter 2 (IN): Parameter value
  - Parameter 3 (IN): Parameter size in bytes
+
+#### Enter Bootloader
+
+The Enter Bootloader command has the following format:
+
+ - Command: 0x0C
+ - Parameters: Ignored
+
+The device will immediately disconnect and re-enumerate as the bootloader device
+upon receiving this command.
 

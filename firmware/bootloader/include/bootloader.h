@@ -8,7 +8,7 @@
 #define _BOOTLOADER_H_
 
 #define FLASH_LOWER_BOUND 0x08002000
-#define FLASH_UPPER_BOUND 0x0800FFFF
+#define FLASH_UPPER_BOUND 0x080077FF
 
 /**
  * Initializes the bootloader component

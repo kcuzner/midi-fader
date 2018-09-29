@@ -50,6 +50,7 @@
 #define CMD_RESET 0x00000000
 #define CMD_PROG  0x00000080
 #define CMD_READ  0x00000040
+#define CMD_ERASE 0x00000088
 #define CMD_EXIT  0x000000C3
 #define CMD_ABORT 0x0000003E
 
@@ -145,6 +146,50 @@ static BootloaderState bootloader_enter_reset(void)
     return bootloader_send_status(ST_RESET);
 }
 
+static void bootloader_prepare_program(uint32_t address, Error err)
+{
+    //if needed, erase the previous entry point
+    uint32_t storage_buf;
+    size_t len = sizeof(storage_buf);
+    storage_read(STORAGE_BOOTLOADER_USER_VTOR, &storage_buf, &len, err);
+    if (ERROR_IS_FATAL(err))
+        return;
+    if (storage_buf)
+    {
+        storage_buf = 0;
+        storage_write(STORAGE_BOOTLOADER_USER_VTOR, &storage_buf, sizeof(storage_buf), err);
+    }
+    if (ERROR_IS_FATAL(err))
+        return;
+
+    //Determine if the address is in range
+    if ((address & 0x7F) || (address < FLASH_LOWER_BOUND) || (address > FLASH_UPPER_BOUND))
+    {
+        ERROR_SET(err, BOOTLOADER_ERR_BAD_ADDR);
+    }
+}
+
+/**
+ * Performs a page erase operation
+ */
+static BootloaderState bootloader_erase_page(void)
+{
+    ERROR_INST(err);
+
+    memset(in_report.buffer, 0, sizeof(in_report));
+    in_report.last_command = CMD_ERASE;
+
+    bootloader_prepare_program((uint32_t)out_report.address, &err);
+    nvm_flash_erase_page(out_report.address, &err);
+
+    if (ERROR_IS_FATAL(&err))
+    {
+        in_report.status = err;
+    }
+
+    return bootloader_send_status(ST_RESET);
+}
+
 /**
  * Sends a status report, queueing up a state change to ST_LPROG
  */
@@ -159,34 +204,9 @@ static BootloaderState bootloader_enter_prog(void)
     memset(in_report.buffer, 0, sizeof(in_report));
     in_report.last_command = CMD_PROG;
 
-    //if needed, erase the previous entry point
-    uint32_t storage_buf;
-    size_t len = sizeof(storage_buf);
-    storage_read(STORAGE_BOOTLOADER_USER_VTOR, &storage_buf, &len, &err);
-    if (ERROR_IS_FATAL(&err))
-        goto done;
-    if (storage_buf)
-    {
-        storage_buf = 0;
-        storage_write(STORAGE_BOOTLOADER_USER_VTOR, &storage_buf, sizeof(storage_buf), &err);
-    }
-    if (ERROR_IS_FATAL(&err))
-        goto done;
+    //Validate the address for programming and prepare the device
+    bootloader_prepare_program((uint32_t)bootloader_state.address, &err);
 
-    uint32_t address = (uint32_t)bootloader_state.address;
-    //determine if the address is aligned and in range
-    if ((address & 0x7F) || (address < FLASH_LOWER_BOUND) || (address > FLASH_UPPER_BOUND))
-    {
-        ERROR_SET(&err, BOOTLOADER_ERR_BAD_ADDR);
-        in_report.status = BOOTLOADER_ERR_BAD_ADDR;
-    }
-    else
-    {
-        //erase the page
-        nvm_flash_erase_page(bootloader_state.address, &err);
-    }
-
-done:
     if (ERROR_IS_FATAL(&err))
     {
         in_report.status = err;
@@ -298,6 +318,10 @@ static BootloaderState bootloader_fsm_reset(BootloaderEvent ev)
         {
             return bootloader_enter_reset();
         }
+        else if (out_report.command == CMD_ERASE)
+        {
+            return bootloader_erase_page();
+        }
         else if (out_report.command == CMD_PROG)
         {
             return bootloader_enter_prog();
@@ -387,9 +411,9 @@ static BootloaderState bootloader_fsm_program(bool upper, BootloaderEvent ev)
     }
 
     //verify the page
-    for (i = 0; i < 16; i++)
+    for (i = 0; i < 32; i++)
     {
-        if (address[i] != out_report.buffer[i])
+        if (address[i] != out_report.buffer_hw[i])
         {
             ERROR_SET(&err, BOOTLOADER_ERR_VERIFY);
             goto error;
@@ -561,7 +585,6 @@ void hook_usb_hid_in_report_sent(const USBTransferData *report)
     bootloader_tick(EV_HID_IN);
 }
 
-uint32_t last_length;
 void hook_usb_hid_out_report_received(const USBTransferData *report)
 {
     if (report->len == 64)
