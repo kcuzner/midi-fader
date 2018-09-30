@@ -23,27 +23,16 @@
 #define STORAGE_WRN_INSUFFICIENT_BUF 1000
 // Error when there is no storage segment available
 #define STORAGE_ERR_NO_STORAGE -1001
-// Error when we run into write protection
-#define STORAGE_ERR_WRITEPROT -1002
-// Error when the flash module reports a problem programming (flash not
-// erased beforehand)
-#define STORAGE_ERR_PROGRAM -1003
-// Error when we fail to verify the written data
-#define STORAGE_ERR_VERIFY -1004
 // Error when migration fails due to the magic value being already
 // programmed
-#define STORAGE_ERR_MIGRATE_MAGIC -1005
+#define STORAGE_ERR_MIGRATE_MAGIC -1002
 // Error when the value cannot be found
-#define STORAGE_ERR_NOT_FOUND -1006
+#define STORAGE_ERR_NOT_FOUND -1003
 // Error when the storage region contains invalid data
-#define STORAGE_ERR_CORRUPT -1007
-// Error when an erase fails because of write protection
-#define STORAGE_ERR_ERASE_WRITEPROT -1008
-// Error when an erase fails because of a programming error
-#define STORAGE_ERR_ERASE_PROGRAM -1009
+#define STORAGE_ERR_CORRUPT -1004
 // Error when a write fails because the value is too large, even after
 // migration
-#define STORAGE_ERR_TOO_LARGE -1010
+#define STORAGE_ERR_TOO_LARGE -1005
 
 /**
  * Structure used by the storage generator to store data

@@ -20,6 +20,7 @@
 
 #define CONFIGURATION_HID_GET_PARAM 0x40
 #define CONFIGURATION_HID_SET_PARAM 0x80
+#define CONFIGURATION_HID_ENTER_BOOTLOADER 0x0C
 
 /**
  * Gets the number of 1ms ticks to delay for sending control changes

@@ -1,26 +1,17 @@
 /**
- * USB Midi-Fader
+ * STM32L052X8 Wristwatch Firmware
  *
  * Kevin Cuzner
- *
- * Main Application
  */
-
-#include "usb.h"
-#include "usb_app.h"
-#include "usb_hid.h"
-#include "usb_midi.h"
-#include "osc.h"
-#include "error.h"
-#include "storage.h"
-#include "fader.h"
-#include "buttons.h"
-#include "systick.h"
-#include "mackie.h"
 
 #include "stm32f0xx.h"
 
-#include "_gen_usb_desc.h"
+#include "usb.h"
+#include "osc.h"
+#include "usb_hid.h"
+#include "bootloader.h"
+
+#include <stddef.h>
 
 /**
  * <descriptor id="device" type="0x01">
@@ -56,7 +47,7 @@
  *  <hidden name="wLang" size="2">0x0409</hidden>
  *  <length name="bLength" size="1" />
  *  <type name="bDescriptorType" size="1" />
- *  <string name="wString">Midi-Fader</string>
+ *  <string name="wString">Midi-Fader Bootloader</string>
  * </descriptor>
  * <descriptor id="configuration" type="0x02">
  *  <length name="bLength" size="1" />
@@ -71,16 +62,16 @@
  * </descriptor>
  */
 
-#include <stddef.h>
+typedef struct __attribute__((packed))
+{
+    uint8_t data[8];
+} WristwatchReport;
 
-static const USBInterfaceListNode midi_interface_node = {
-    .interface = &midi_interface,
-    .next = NULL,
-};
+static volatile uint8_t segment = 0;
 
 static const USBInterfaceListNode hid_interface_node = {
     .interface = &hid_interface,
-    .next = &midi_interface_node,
+    .next = NULL,
 };
 
 const USBApplicationSetup setup = {
@@ -89,39 +80,26 @@ const USBApplicationSetup setup = {
 
 const USBApplicationSetup *usb_app_setup = &setup;
 
-static volatile uint32_t tick_count = 0;
-static void update_tick(void)
+int main(void)
 {
-    tick_count++;
-}
+    bootloader_init();
 
-uint8_t buf[16];
-int main()
-{
-    osc_request_hsi8();
-
-    systick_init();
-
-    __enable_irq();
+    SystemCoreClockUpdate();
 
     usb_init();
-    fader_init();
-    buttons_init();
-    mackie_init();
 
-
-    // Small delay to force a USB reset
-    usb_disable();
-    tick_count = 0;
-    systick_subscribe(&update_tick);
-    while (tick_count < 20) { } //at least 10ms needed, so we do 20ms
+    osc_request_hsi8();
     usb_enable();
 
-    while (1)
-    {
-        mackie_tick();
-    }
+    bootloader_run();
+
+    while (1) { }
 
     return 0;
+}
+
+void TIM2_IRQHandler()
+{
+    TIM2->SR = 0;
 }
 

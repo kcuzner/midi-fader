@@ -180,7 +180,18 @@ class Descriptor(TagHandler):
         self.top = ('childof' not in el.attrib) or attrib_bool(el, 'top')
         self.first = attrib_bool(el, 'first')
         self.parentid = el.attrib['childof'] if 'childof' in el.attrib else None
-        self.wIndex = int(el.attrib['wIndex'], 0) if 'wIndex' in el.attrib else 0
+        self.order = int(el.attrib['order'], 0) if 'order' in el.attrib else 0 # Highest numbers outputted first
+        # A word about wIndex: wIndex is used in the descriptor table for
+        # matching a particular descriptor to a setup request. For strings, the
+        # index is the language id. For descriptors like HID, it is the
+        # interface index. For descriptors like a configuration, it is its own
+        # index (we don't cover this case yet).
+        self.wIndex = int(el.attrib['wIndex'], 0) if 'wIndex' in el.attrib else None # Direct declaration of the wIndex
+        self.wIndexType = int(el.attrib['wIndexType'], 0) if 'wIndexType' in el.attrib else None # The wIndexType is a descriptor type
+        if 'wIndex' in el.attrib and 'wIndexType' in el.attrib:
+            raise ValueError("A descriptor may not declare both a wIndex and wIndexType")
+        if 'wIndexType' in el.attrib and 'childof' not in el.attrib:
+            raise ValueError("A wIndexType in a descriptor requires that the descriptor have a childof attribute")
         super().__init__(el, parent)
     @property
     def index(self):
@@ -189,6 +200,19 @@ class Descriptor(TagHandler):
     @index.setter
     def index(self, i):
         self._index = i
+    def post_parse(self, descriptor_collection):
+        super().post_parse(descriptor_collection)
+        # Handle the descriptor wIndex if we are a child. It will be matched to
+        # the parent interface descriptor.
+        if self.wIndex is None and self.wIndexType is not None and self.parentid is not None:
+            index_desc = descriptor_collection.find_by_id(self.parentid)
+            while index_desc.type != self.wIndexType:
+                if index_desc.parentid is None:
+                    raise ValueError("Unable to locate a parent descriptor with type {}".format(self.wIndexType))
+                index_desc = descriptor_collection.find_by_id(index_desc.parentid)
+            self.wIndex = index_desc.index
+        elif self.wIndex is None:
+            self.wIndex = 0
     def to_header(self):
         return os.linesep.join([c.to_header() for c in self.children if hasattr(c, 'to_header')])
     def to_source(self):
@@ -389,6 +413,7 @@ class ForeachDescriptor(TagHandler):
         self.type = int(el.attrib['type'], 0)
         super().__init__(el, parent)
     def post_parse(self, descriptor_collection):
+        super().post_parse(descriptor_collection)
         self.child_descriptors = [d for d in descriptor_collection.find_by_type(self.type)\
                 if self.parent != d and (not self.associated or d.parentid == self.parent.id)]
     def __len__(self):
@@ -572,6 +597,8 @@ class DescriptorCollection(object):
             else:
                 self.by_type[typenum].append(desc)
             # Assign indexes
+            #
+            # FIXME: This assigns index by type number. It should be assigned by parent.
             if typenum not in self.indexes:
                 self.indexes[typenum] = 0
             desc.index = self.indexes[typenum]
@@ -614,12 +641,13 @@ class DescriptorCollection(object):
  * {}
  *****************************************************************************/
  """.format(' '.join(sys.argv))
-        for typenum, descriptors in self.top.items():
-            for d in descriptors:
-                yield 'static const USB_DATA_ALIGN uint8_t {}[] = {{'.format(d.id)
-                # indent the descriptor slightly
-                yield '  ' + d.to_source().replace('\n', '\n  ')
-                yield '};\n'
+        all_desc = reversed(
+                sorted([d for tn, ds in self.top.items() for d in ds], key=lambda d: d.order))
+        for d in all_desc:
+            yield 'static const USB_DATA_ALIGN uint8_t {}[] = {{'.format(d.id)
+            # indent the descriptor slightly
+            yield '  ' + d.to_source().replace('\n', '\n  ')
+            yield '};\n'
         yield 'const USBDescriptorEntry usb_descriptors[] = {'
         for typenum, descriptors in self.top.items():
             for d in descriptors:

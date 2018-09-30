@@ -287,6 +287,10 @@ static void configuration_end_request(HIDBuffer *request)
         case CONFIGURATION_HID_SET_PARAM:
             configuration_set_param_response(request, &configuration_response);
             break;
+        case CONFIGURATION_HID_ENTER_BOOTLOADER:
+            //entering bootloader mode with a simple soft reset
+            NVIC_SystemReset();
+            break;
         default:
             configuration_response.parameters[0] = 2;
             break;

@@ -45,14 +45,15 @@ ENTRY(Reset_Handler)
  * Direct usage of symbols allocated in the PMA may cause unexpected behavior.
  */
 
-_flash_origin = 0x08002000;
-_flash_length = 24K;
+_flash_origin = 0x08000000;
+_flash_length = 32K;
 _storage_size = 2K;
 
 MEMORY
 {
-    FLASH (RX) : ORIGIN = _flash_origin, LENGTH = _flash_length - _storage_size
+    FLASH (RX) : ORIGIN = _flash_origin, LENGTH = 8K
     FLASH_STORAGE (RX) : ORIGIN = (_flash_origin + _flash_length) - _storage_size, LENGTH = _flash_length
+    RAM_RSVD (W!RX) : ORIGIN = 0x20000000, LENGTH = 256
     RAM (W!RX)  : ORIGIN = 0x20000100, LENGTH = 6K - 256
     PMA (W)  : ORIGIN = 0x40006000, LENGTH = 1024 /* 512 x 16bit */
 }
@@ -115,6 +116,12 @@ SECTIONS
         KEEP (*(.fini_array*))
         PROVIDE_HIDDEN (__fini_array_end = .);
     } > FLASH
+
+    .boot_data :
+    {
+        *(.rsvd.data)
+        *(.rsvd.data*)
+    } > RAM_RSVD
 
     /* Load address of .data in flash for startup code */
     _sidata = LOADADDR(.data);

@@ -10,6 +10,7 @@
 #include "_gen_storage.h"
 
 #include "stm32f0xx.h"
+#include "nvm.h"
 
 #include <string.h>
 #include <stdbool.h>
@@ -43,13 +44,6 @@
  * start and all valid parameters are re-written to the opposite segment. The
  * now-unused segment is erased in its entirety.
  */
-
-/**
- * Certain functions, such as flash write, are easier to do if the code is
- * executed from the RAM. This decoration relocates the function there and
- * prevents any inlining that might otherwise move the function to flash.
- */
-#define _RAM __attribute__((section (".data#"), noinline))
 
 /**
  * This contains constants that indicate the state of the storage "a"
@@ -200,136 +194,6 @@ void storage_read(uint16_t parameter, void *buf, size_t *len, Error err)
     *len = readLen;
 }
 
-/**
- * Unlocks the flash for write operations
- */
-static void storage_unlock_flash(void)
-{
-    if (FLASH->CR & FLASH_CR_LOCK)
-    {
-        FLASH->KEYR = 0x45670123;
-        FLASH->KEYR = 0xCDEF89AB;
-    }
-}
-
-/**
- * Locks the flash against write operations
- */
-static void storage_lock(void)
-{
-    if (!(FLASH->CR & FLASH_CR_LOCK))
-    {
-        FLASH->CR |= FLASH_CR_LOCK;
-    }
-}
-
-/**
- * RAM-located function which performs the half-word writes.
- *
- * address: Halfword-aligned write address
- * data: Halfword to write
- * err: Error instance
- */
-static _RAM void storage_flash_do_write(uint16_t *addr, uint16_t data, Error err)
-{
-    if (ERROR_IS_FATAL(err))
-        return;
-
-    //half-word program operation
-    FLASH->CR |= FLASH_CR_PG;
-    *addr = data;
-    //wait for completion
-    while (FLASH->SR & FLASH_SR_BSY) { }
-    if (FLASH->SR & FLASH_SR_EOP)
-    {
-        FLASH->SR = FLASH_SR_EOP;
-        if (*addr != data)
-            ERROR_SET(err, STORAGE_ERR_VERIFY);
-    }
-    else
-    {
-        if (FLASH->SR & FLASH_SR_WRPRTERR)
-        {
-            ERROR_SET(err, STORAGE_ERR_WRITEPROT);
-        }
-        else if (FLASH->SR & FLASH_SR_PGERR)
-        {
-            ERROR_SET(err, STORAGE_ERR_PROGRAM);
-        }
-
-        FLASH->SR = FLASH_SR_WRPRTERR | FLASH_SR_PGERR;
-    }
-    FLASH->CR &= ~FLASH_CR_PG;
-}
-
-/**
- * Wrapper function that prepares and performs a flash write
- *
- * addr: Halfword-aligned address to write
- * data: Halfword to write
- */
-static void storage_flash_write(uint16_t *addr, uint16_t data, Error err)
-{
-    if (ERROR_IS_FATAL(err))
-        return;
-
-    storage_unlock_flash();
-    storage_flash_do_write(addr, data, err);
-    storage_lock();
-}
-
-/**
- * RAM-located function which performs the page erase. Pages are 1KB in
- * size.
- *
- * pageaddr: Address located within the 1KB page to be erased.
- */
-static _RAM void storage_flash_do_erase_page(uint16_t *pageaddr, Error err)
-{
-    if (ERROR_IS_FATAL(err))
-        return;
-
-    //page erase operation
-    FLASH->CR |= FLASH_CR_PER;
-    FLASH->AR = (uint32_t)(pageaddr);
-    FLASH->CR |= FLASH_CR_STRT;
-    //wait for completion
-    while (FLASH->SR & FLASH_SR_BSY) { }
-    if (FLASH->SR & FLASH_SR_EOP)
-    {
-        FLASH->SR = FLASH_SR_EOP;
-    }
-    else
-    {
-        if (FLASH->SR & FLASH_SR_WRPRTERR)
-        {
-            ERROR_SET(err, STORAGE_ERR_ERASE_WRITEPROT);
-        }
-        else if (FLASH->SR & FLASH_SR_PGERR)
-        {
-            ERROR_SET(err, STORAGE_ERR_ERASE_PROGRAM);
-        }
-
-        FLASH->SR = FLASH_SR_WRPRTERR | FLASH_SR_PGERR;
-    }
-    FLASH->CR &= ~FLASH_CR_PER;
-}
-
-/**
- * Wrapper function that prepares and performs a flash erase
- *
- * pageaddr: Address within the page to erase
- */
-static void storage_flash_erase_page(uint16_t *pageaddr, Error err)
-{
-    if (ERROR_IS_FATAL(err))
-        return;
-
-    storage_unlock_flash();
-    storage_flash_do_erase_page(pageaddr, err);
-    storage_lock();
-}
-
 static void storage_flash_write_stored_value(StoredValue *location, uint16_t parameter,
         uint16_t len, const void *buf, Error err)
 {
@@ -344,17 +208,17 @@ static void storage_flash_write_stored_value(StoredValue *location, uint16_t par
             halfword |= ((uint16_t)bytes[idx+1]) << 8;
         // I promise that idx is an even number and is uint16_t*
         // aligned.
-        storage_flash_write((uint16_t*)(&location->data[idx]), halfword, err);
+        nvm_flash_write((uint16_t*)(&location->data[idx]), halfword, err);
         if (ERROR_IS_FATAL(err))
             return;
     }
     // Size is written next.
-    storage_flash_write(&location->size, len, err);
+    nvm_flash_write(&location->size, len, err);
     if (ERROR_IS_FATAL(err))
         return;
     // Parameter is last. The entry is now considered valid and will
     // be walked.
-    storage_flash_write(&location->parameter, parameter, err);
+    nvm_flash_write(&location->parameter, parameter, err);
 }
 
 /**
@@ -403,12 +267,12 @@ static void storage_migrate(Error err)
     }
 
     // This section is now fully migrated and is good
-    storage_flash_write(magicdest, STORAGE_SECTION_START_MAGIC, err);
+    nvm_flash_write(magicdest, STORAGE_SECTION_START_MAGIC, err);
     if (ERROR_IS_FATAL(err))
         return;
 
     // any pointer within the page will erase the entire page
-    storage_flash_erase_page(magicsrc, err);
+    nvm_flash_erase_page(magicsrc, err);
 }
 
 static StoredValue *storage_find_end(Error err)
@@ -509,6 +373,6 @@ void storage_write(uint16_t parameter, const void *buf, size_t len, Error err)
     storage_flash_write_stored_value(next, parameter, len, buf, err);
 
     // Invalidate the old value
-    storage_flash_write(&(current->parameter), STORAGE_INVALID_PARAMETER, err);
+    nvm_flash_write(&(current->parameter), STORAGE_INVALID_PARAMETER, err);
 }
 

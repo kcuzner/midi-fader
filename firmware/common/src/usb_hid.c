@@ -5,6 +5,7 @@
  */
 
 #include "usb_hid.h"
+#include "_gen_usb_desc.h"
 
 /**
  * <include>usb_hid.h</include>
@@ -48,7 +49,7 @@
  *  <word name="wMaxPacketSize">USB_HID_ENDPOINT_SIZE</word>
  *  <byte name="bInterval">10</byte>
  * </descriptor>
- * <descriptor id="hid_report" childof="hid" top="top" type="0x22">
+ * <descriptor id="hid_report" childof="hid" top="top" type="0x22" order="1" wIndexType="0x04">
  *  <hidden name="bDescriptorType" size="1">0x22</hidden>
  *  <hidden name="wLength" size="2">sizeof(hid_report)</hidden>
  *  <raw>
@@ -67,9 +68,6 @@
  *  </raw>
  * </descriptor>
  */
-
-#define HID_IN_ENDPOINT 1
-#define HID_OUT_ENDPOINT 2
 
 void __attribute__((weak)) hook_usb_hid_configured(void) { }
 void __attribute__((weak)) hook_usb_hid_out_report(const USBTransferData *report) { }
