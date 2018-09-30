@@ -5,6 +5,7 @@
  */
 
 #include "usb_hid.h"
+#include "_gen_usb_desc.h"
 
 /**
  * <include>usb_hid.h</include>
@@ -67,9 +68,6 @@
  *  </raw>
  * </descriptor>
  */
-
-#define HID_IN_ENDPOINT 1
-#define HID_OUT_ENDPOINT 2
 
 void __attribute__((weak)) hook_usb_hid_configured(void) { }
 void __attribute__((weak)) hook_usb_hid_out_report(const USBTransferData *report) { }

@@ -84,7 +84,11 @@ install: flash update
 flash: $(BINDIR)/$(PROJECT).bin $(BINDIR)/openocd.pid
 	cat openocd/flash.cfg | nc localhost 4444
 
-update: $(BINDIR)/$(BINARY).hex $(BINDIR)/openocd.pid
+update: $(BINDIR)/$(BINARY).hex
+	$(PYTHON) $(SCRIPTDIR)/bootloader program $(BINDIR)/$(BINARY).hex
+
+run:
+	$(PYTHON) $(SCRIPTDIR)/bootloader abort
 
 gdb: $(BINDIR)/openocd.pid
 	$(GDB) -ex "target remote localhost:3333" -ex "add-symbol-file $(BOOT_BINDIR)/$(BOOT_BINARY).elf 0x08000000" $(BINDIR)/$(BINARY).elf

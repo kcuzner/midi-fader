@@ -103,6 +103,7 @@ class Device(hid.device):
 
     def enter_bootloader(self):
         cmd = EnterBootloaderCommand()
+        self.write_command(cmd, response=False)
 
 def find_device(cls=Device):
     info = hid.enumerate(VID, PID)

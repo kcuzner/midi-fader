@@ -193,7 +193,6 @@ class Bootloader(Device):
                 return stat
     def try_read_status(self, timeout_ms=1):
         result = self.read(64, timeout_ms=timeout_ms)
-        print ("Status len {}".format(len(result)))
         return BootloaderStatus(result) if len(result) else None
 
     def reset(self):
