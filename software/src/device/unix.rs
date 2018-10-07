@@ -1,33 +1,32 @@
-//! Device implementation that uses udev
+//! Device implementation for linix that uses udev
 //!
 //! This is heavily based on hidapi by Signal11, but I did not actually include
 //! that library since I instead wanted to favor a 100% rust implementation.
 //!
 //! See https://github.com/signal11/hidapi/blob/master/linux/hid.c
 
-use udev;
 use device;
 use device::{Identified, Device, Open};
+use errno::{errno};
 use libc;
 use mio;
+use udev;
+
 use std::marker::PhantomData;
-use std::{ffi, path, result, fs, io};
+use std::{ffi, path, io};
 use std::os::unix;
-use std::os::unix::io::AsRawFd;
-use std::os::unix::fs::OpenOptionsExt;
+
+
 
 error_chain! {
     foreign_links {
         Udev(::udev::Error);
+        Io(io::Error);
     }
     errors {
         NoDeviceNode(syspath: String) {
             description("No device node for device"),
             display("No device node for '{}'", syspath),
-        }
-        DeviceOpenFailed(path: String) {
-            description("Failed to open the device"),
-            display("Failed to open the device at '{}'", path),
         }
     }
 }
@@ -211,27 +210,68 @@ impl<T: Identified> Open<T> for OpenUdev<T> {
     fn open(&self) -> device::Result<Device<T>> {
         let node = self.dev.devnode()
             .map_or_else(|| Err(Error::from_kind(ErrorKind::NoDeviceNode(self.dev.syspath().to_str().unwrap().to_owned()))), |n| Ok(n))?;
-        let file = fs::OpenOptions::new().read(true).write(true).custom_flags(libc::O_NONBLOCK).open(node)?;
-        let evfile = EventedFile::new(file);
-        Ok(Device::new(evfile))
+        let hid_device = HidDevice::new(node)?;
+        Ok(Device::new(hid_device))
     }
 }
 
-/// Struct which owns both the file and an EventedFd
-pub(super) struct EventedFile {
-    f: fs::File,
+/// Human Interface Device abstraction implementation
+///
+/// The human interface device can be read and written concurrently.
+pub(super) struct HidDevice {
     fd: unix::io::RawFd,
 }
 
-impl EventedFile {
-    /// Creates a new EventedFile
-    fn new(file: fs::File) -> Self {
-        let fd = file.as_raw_fd();
-        EventedFile { f: file, fd: fd }
+impl HidDevice {
+    /// Creates a new HidDevice from a device node path
+    fn new(node: &path::Path) -> Result<Self> {
+        let raw_path = node.to_str().unwrap();
+        match unsafe { libc::open(raw_path.as_ptr() as *const i8, libc::O_RDWR | libc::O_NONBLOCK) } {
+            -1 => Err(io::Error::from(errno()).into()),
+            fd => Ok(HidDevice { fd: fd }),
+        }
+    }
+
+    /// Reads this device
+    ///
+    /// Note that this does not require exclusive access to the device.
+    pub fn read(&self, buf: &mut [u8]) -> Result<usize> {
+        match unsafe { libc::read(self.fd, buf as *mut _ as *mut libc::c_void, buf.len()) } {
+            -1 => Err(io::Error::from(errno()).into()),
+            size => Ok(size as usize),
+        }
+    }
+
+    /// Writes this device
+    ///
+    /// The passed buffer must be the exact length of the report which will be sent to the device.
+    /// It must be preceded by a single byte which is the report ID or 0x00 if report IDs are not
+    /// used.
+    ///
+    /// Note that this does not require exclusive access to the device.
+    ///
+    /// TODO: Make the extra report ID an abstraction so I don't have to worry about it explicitly.
+    pub fn write(&self, buf: &[u8]) -> Result<usize> {
+        match unsafe { libc::write(self.fd, buf as *const _ as *const libc::c_void, buf.len()) } {
+            -1 => Err(io::Error::from(errno()).into()),
+            size => Ok(size as usize),
+        }
     }
 }
 
-impl mio::Evented for EventedFile {
+impl Drop for HidDevice {
+    /// Closes our underlying file descriptor
+    fn drop(&mut self) {
+        if unsafe { libc::close(self.fd) } != 0 {
+            // I'm not sure this is the right thing to do, but a close failing is pretty
+            // catastrophic
+            let err = errno();
+            panic!("Error while closing file descriptor {}", err);
+        }
+    }
+}
+
+impl mio::Evented for HidDevice {
     fn register(&self, poll: &mio::Poll, token: mio::Token, interest: mio::Ready, opts: mio::PollOpt) -> io::Result<()> {
         mio::unix::EventedFd(&self.fd).register(poll, token, interest, opts)
     }
@@ -240,21 +280,6 @@ impl mio::Evented for EventedFile {
     }
     fn deregister(&self, poll: &mio::Poll) -> io::Result<()> {
         mio::unix::EventedFd(&self.fd).deregister(poll)
-    }
-}
-
-impl io::Read for EventedFile {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.f.read(buf)
-    }
-}
-
-impl io::Write for EventedFile {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.f.write(buf)
-    }
-    fn flush(&mut self) -> io::Result<()> {
-        self.f.flush()
     }
 }
 

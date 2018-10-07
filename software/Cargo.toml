@@ -10,6 +10,7 @@ tokio = "0.1.11"
 mio = "0.6.16"
 libc = "0.2"
 futures = "0.1.24"
+errno = "0.2"
 
 [target.'cfg(target_os="linux")'.dependencies]
 udev = "0.2.0"
