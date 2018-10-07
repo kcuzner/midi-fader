@@ -6,9 +6,15 @@
 //! See https://github.com/signal11/hidapi/blob/master/linux/hid.c
 
 use udev;
-use device::{Device, DeviceInstance};
+use device;
+use device::{Identified, Device, Open};
+use libc;
+use mio;
 use std::marker::PhantomData;
 use std::{ffi, path, result, fs, io};
+use std::os::unix;
+use std::os::unix::io::AsRawFd;
+use std::os::unix::fs::OpenOptionsExt;
 
 error_chain! {
     foreign_links {
@@ -145,12 +151,12 @@ impl DeviceDetails {
     }
 }
 
-pub(super) struct DeviceEnumeration<T: Device> {
+pub(super) struct DeviceEnumeration<T: Identified> {
     _0: PhantomData<T>,
     iter: udev::Devices,
 }
 
-impl<T: Device> DeviceEnumeration<T> {
+impl<T: Identified> DeviceEnumeration<T> {
     pub fn new() -> Result<Self> {
         let context = udev::Context::new()?;
         let mut enumerator = udev::Enumerator::new(&context)?;
@@ -159,55 +165,96 @@ impl<T: Device> DeviceEnumeration<T> {
         let devs = enumerator.scan_devices()?;
         Ok(DeviceEnumeration { _0: PhantomData, iter: devs })
     }
+
+    fn filter_device(dev: udev::Device) -> Option<udev::Device> {
+        // Match the device
+        let hid_dev = get_parent_device(&dev, &path::Path::new("hid"))?;
+        let uevent = UEventInfo::new(hid_dev.attribute_value("uevent")?)?;
+        if !(uevent.bus_type == BusType::Usb || uevent.bus_type == BusType::Bluetooth) || uevent.vendor_id != T::VID || uevent.product_id != T::PID {
+            return None;
+        }
+        let details = DeviceDetails::new(&dev, &uevent)?;
+        if details.manufacturer != T::MANUFACTURER || details.product != T::PRODUCT {
+            return None;
+        }
+        Some(dev)
+    }
 }
 
-impl<T: Device> Iterator for DeviceEnumeration<T> {
-    type Item = DeviceResult<T>;
+impl<T: Identified + 'static> Iterator for DeviceEnumeration<T> {
+    type Item = Box<Open<T>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         // Read the next device in the udev enumeration
         while let Some(dev) = self.iter.next() {
-            // Match the device
-            let hid_dev = get_parent_device(&dev, &path::Path::new("hid"))?;
-            let uevent = UEventInfo::new(hid_dev.attribute_value("uevent")?)?;
-            if !(uevent.bus_type == BusType::Usb || uevent.bus_type == BusType::Bluetooth) || uevent.vendor_id != T::VID || uevent.product_id != T::PID {
-                continue;
-            }
-            let details = DeviceDetails::new(&dev, &uevent)?;
-            if details.manufacturer != T::MANUFACTURER || details.product != T::PRODUCT {
-                continue;
-            }
-            // The device has matched!
-            return Some(DeviceResult::new(dev))
+            match DeviceEnumeration::<T>::filter_device(dev) {
+                Some(dev) => return Some(Box::new(OpenUdev::<T>::new(dev))),
+                None => continue,
+            };
         }
         None
     }
 }
 
-/// Device result for a udev device
-pub struct DeviceResult<T: Device> {
+struct OpenUdev<T: Identified> {
     _0: PhantomData<T>,
-    device: udev::Device,
+    dev: udev::Device,
 }
 
-impl<T: Device> DeviceResult<T> {
-    /// Builds a new udev device result
-    fn new(device: udev::Device) -> Self {
-        DeviceResult { _0: PhantomData, device: device }
-    }
-
-    /// Opens this device result
-    pub fn open(&self) -> Result<impl DeviceInstance<T>> {
-        match self.device.devnode() {
-            Some(path) => fs::File::open(path)
-                .chain_err(|| ErrorKind::DeviceOpenFailed(path.to_str().unwrap().to_owned())),
-            None => Err(ErrorKind::NoDeviceNode(self.device.syspath().to_str().unwrap().to_owned()).into()),
-        }
+impl<T: Identified> OpenUdev<T> {
+    fn new(dev: udev::Device) -> Self {
+        OpenUdev { _0: PhantomData, dev: dev }
     }
 }
 
-/// Marks the file as a device instance. On Linux the HID devices are just
-/// simply a file, though we only expose the DeviceInstance interface.
-impl<T: Device> DeviceInstance<T> for fs::File {
+impl<T: Identified> Open<T> for OpenUdev<T> {
+    fn open(&self) -> device::Result<Device<T>> {
+        let node = self.dev.devnode()
+            .map_or_else(|| Err(Error::from_kind(ErrorKind::NoDeviceNode(self.dev.syspath().to_str().unwrap().to_owned()))), |n| Ok(n))?;
+        let file = fs::OpenOptions::new().read(true).write(true).custom_flags(libc::O_NONBLOCK).open(node)?;
+        let evfile = EventedFile::new(file);
+        Ok(Device::new(evfile))
+    }
+}
+
+/// Struct which owns both the file and an EventedFd
+pub(super) struct EventedFile {
+    f: fs::File,
+    fd: unix::io::RawFd,
+}
+
+impl EventedFile {
+    /// Creates a new EventedFile
+    fn new(file: fs::File) -> Self {
+        let fd = file.as_raw_fd();
+        EventedFile { f: file, fd: fd }
+    }
+}
+
+impl mio::Evented for EventedFile {
+    fn register(&self, poll: &mio::Poll, token: mio::Token, interest: mio::Ready, opts: mio::PollOpt) -> io::Result<()> {
+        mio::unix::EventedFd(&self.fd).register(poll, token, interest, opts)
+    }
+    fn reregister(&self, poll: &mio::Poll, token: mio::Token, interest: mio::Ready, opts: mio::PollOpt) -> io::Result<()> {
+        mio::unix::EventedFd(&self.fd).reregister(poll, token, interest, opts)
+    }
+    fn deregister(&self, poll: &mio::Poll) -> io::Result<()> {
+        mio::unix::EventedFd(&self.fd).deregister(poll)
+    }
+}
+
+impl io::Read for EventedFile {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.f.read(buf)
+    }
+}
+
+impl io::Write for EventedFile {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.f.write(buf)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        self.f.flush()
+    }
 }
 
