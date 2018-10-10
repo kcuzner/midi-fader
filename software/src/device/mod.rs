@@ -2,7 +2,7 @@
 //!
 //! This abstracts away the OS-layer HID implementation
 
-use std::{io, path};
+use std::io;
 use std::marker::PhantomData;
 use mio;
 use tokio;
@@ -29,6 +29,18 @@ error_chain! {
 
 /// All reports for our devices are 64 bytes long
 pub struct Report(pub [u8; 64]);
+
+impl AsMut<[u8]> for Report {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
+}
+
+impl AsRef<[u8]> for Report {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
 
 impl Report {
     pub fn new() -> Self {
@@ -63,11 +75,11 @@ impl<T: Identified> Device<T> {
     }
 
     /// Polls the read status of the inner HidDevice
-    pub fn poll_read(&self, report: &mut Report) -> Result<Async<()>> {
+    pub fn poll_read(&self, report: &mut [u8]) -> Result<Async<usize>> {
         try_ready!(self.io.poll_read_ready(mio::Ready::readable()));
 
-        match self.io.get_ref().read(&mut report.0) {
-            Ok(_) => Ok(().into()),
+        match self.io.get_ref().read(report) {
+            Ok(n) => Ok(n.into()),
             Err(os::Error(os::ErrorKind::Io(ref e), _)) if e.kind() == io::ErrorKind::WouldBlock => {
                 self.io.clear_read_ready(mio::Ready::readable())?;
                 Ok(Async::NotReady)
@@ -81,35 +93,22 @@ impl<T: Identified> Device<T> {
     /// Note that this does not obtain an exclusive lock on the Device, so it can be called
     /// concurrently with write.
     ///
-    /// TODO: Do we really want to allow multiple outstanding reads on a device?
-    /// TODO: Use AsMut
-    pub fn read<'a>(&'a self, report: &'a mut Report) -> ReadReport<'a, T>
+    /// TODO: Make it possible to do concurrent reads and writes.
+    /// The issue right now is the lifetimes make things freak out. I also think I'll run into
+    /// issues with borrow-across-yield.
+    pub fn read<B>(self, report: B) -> ReadReport<T, B>
+        where B: AsMut<[u8]>
     {
-        ReadReport::new(&self, report)
+        ReadReport::new(self, report)
     }
 
-    /// Polls the write status of the inner HidDevice
-    pub fn poll_write(&self, report: &Report) -> Result<Async<()>> {
-        try_ready!(self.io.poll_write_ready());
-
-        match self.io.get_ref().write(&report.0) {
-            Ok(_) => Ok(().into()),
-            Err(os::Error(os::ErrorKind::Io(ref e), _)) if e.kind() == io::ErrorKind::WouldBlock => {
-                self.io.clear_write_ready()?;
-                Ok(Async::NotReady)
-            },
-            Err(e) => Err(e.into()),
-        }
-    }
-
-    /// Creates a future for a write to this device
+    /// Writes to the device.
     ///
-    /// Note that this does not obtain an exclusive lock on the Device, so it can be called
-    /// concurrently with read.
-    ///
-    /// TODO: Do we really want to allow multiple outstanding writes on a device?
-    pub fn write<'a>(&'a self, report: &'a Report) -> WriteReport<'a, T> {
-        unimplemented!()
+    /// This is not a promise because (at least on Linux) the raw HID device will never return
+    /// EAGAIN. It also never seems to signal that it's ready for writing.
+    pub fn write(&self, report: &[u8]) -> Result<usize>
+    {
+        self.io.get_ref().write(report).map_err(|e| e.into())
     }
 }
 
@@ -120,52 +119,45 @@ impl<T: Identified + 'static> Device<T> {
     }
 }
 
-struct ReadReportInner<'a, T: Identified + 'static> {
-    device: &'a Device<T>,
-    buf: &'a mut Report,
+struct ReadReportInner<T: Identified + 'static, B: AsMut<[u8]>> {
+    device: Device<T>,
+    buf: B,
 }
 
-pub struct ReadReport<'a, T: Identified + 'static> {
+pub struct ReadReport<T: Identified + 'static, B: AsMut<[u8]>> {
     /// None means the future was completed
-    inner: Option<ReadReportInner<'a, T>>,
+    state: Option<ReadReportInner<T, B>>,
 }
 
 
-impl<'a, T: Identified + 'static> ReadReport<'a, T> {
-    fn new(dev: &'a Device<T>, buf: &'a mut Report) -> Self {
+impl<T: Identified + 'static, B: AsMut<[u8]>> ReadReport<T, B> {
+    fn new(dev: Device<T>, buf: B) -> Self {
         // I'm borrowing this pattern from the UdpSocket example, but I'm not sure I agree with the
         // choice to have ReadReportInner not have a new. But, maybe its just simpler that way.
         let inner = ReadReportInner { device: dev, buf: buf };
-        ReadReport{ inner: Some(inner) }
+        ReadReport { state: Some(inner) }
     }
 }
 
-struct WriteReportInner<'a, T: Identified + 'static> {
-    device: &'a Device<T>,
-    buf: &'a Report,
-}
+impl<T: Identified + 'static, B: AsMut<[u8]>> Future for ReadReport<T, B> {
+    type Item = (Device<T>, B, usize);
+    type Error = Error;
 
-pub struct WriteReport<'a, T: Identified + 'static> {
-    inner: Option<WriteReportInner<'a, T>>,
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        let n = {
+            let ref mut inner = self.state.as_mut().expect("ReadReport polled after completion");
+
+            try_ready!(inner.device.poll_read(inner.buf.as_mut()))
+        };
+
+        let inner = self.state.take().unwrap();
+        Ok(Async::Ready((inner.device, inner.buf, n)))
+    }
 }
 
 pub trait Open<T: Identified> {
     /// Opens the device this represents
     fn open(&self) -> Result<Device<T>>;
-}
-
-/// Generates a device path
-pub trait DevicePath<T: Identified> {
-    /// Reads the system name for the device
-    ///
-    /// This can be identical to the path. It is used only during error creation
-    fn name(&self) -> &path::Path;
-    /// Attempts to read the device node path
-    fn node(&self) -> Option<&path::Path>;
-}
-
-pub struct DeviceIterator<T: Identified> {
-    it: os::DeviceEnumeration<T>,
 }
 
 /// Midi-Fader device
