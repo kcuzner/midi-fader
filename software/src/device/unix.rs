@@ -13,7 +13,7 @@ use mio;
 use udev;
 
 use std::marker::PhantomData;
-use std::{ffi, path, io};
+use std::{ffi, fmt, path, io};
 use std::os::unix;
 
 
@@ -214,10 +214,17 @@ impl<T: Identified> Open<T> for OpenUdev<T> {
         Ok(Device::new(hid_device))
     }
 }
+impl<T: Identified> fmt::Debug for OpenUdev<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "OpenUdev {{ dev: {} }}", self.dev.syspath().to_str().unwrap())
+    }
+}
+
 
 /// Human Interface Device abstraction implementation
 ///
 /// The human interface device can be read and written concurrently.
+#[derive(Debug)]
 pub(super) struct HidDevice {
     fd: unix::io::RawFd,
 }
