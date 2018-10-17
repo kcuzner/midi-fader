@@ -27,6 +27,16 @@ error_chain! {
     links {
         ImplError(os::Error, os::ErrorKind);
     }
+    errors {
+        DeviceError(n: i32) {
+            description("Error from the device"),
+            display("Error from the device: {}", n),
+        }
+        ParameterSizeError(s: usize) {
+            description("The parameter was of an invalid size"),
+            display("The parameter was of an invalid size: {}", s),
+        }
+    }
 }
 
 pub trait Identified {
@@ -34,6 +44,17 @@ pub trait Identified {
     const PID: u16;
     const MANUFACTURER: &'static str;
     const PRODUCT: &'static str;
+}
+
+/// Human interface device with asynchronous reads
+pub trait AsyncHidDevice<T: Identified>: Sized {
+    /// Perform an asynchronous read
+    fn read<B>(self, report: B) -> ReadReport<T, Self, B>
+        where B: AsMut<[u8]>;
+    /// Poll for a read
+    fn poll_read(&self, report: &mut [u8]) -> Result<Async<usize>>;
+    /// Perform a synchronous write
+    fn write(&self, report: &[u8]) -> Result<usize>;
 }
 
 /// The Human Interface Device
@@ -56,8 +77,11 @@ impl<T: Identified> Device<T> {
         Device { _0: PhantomData, io: PollEvented2::new(file) }
     }
 
+}
+
+impl<T: Identified> AsyncHidDevice<T> for Device<T> {
     /// Polls the read status of the inner HidDevice
-    pub fn poll_read(&self, report: &mut [u8]) -> Result<Async<usize>> {
+    fn poll_read(&self, report: &mut [u8]) -> Result<Async<usize>> {
         try_ready!(self.io.poll_read_ready(mio::Ready::readable()));
 
         match self.io.get_ref().read(report) {
@@ -74,11 +98,7 @@ impl<T: Identified> Device<T> {
     ///
     /// Note that this does not obtain an exclusive lock on the Device, so it can be called
     /// concurrently with write.
-    ///
-    /// TODO: Make it possible to do concurrent reads and writes.
-    /// The issue right now is the lifetimes make things freak out. I also think I'll run into
-    /// issues with borrow-across-yield.
-    pub fn read<B>(self, report: B) -> ReadReport<T, B>
+    fn read<B>(self, report: B) -> ReadReport<T, Self, B>
         where B: AsMut<[u8]>
     {
         ReadReport::new(self, report)
@@ -88,7 +108,7 @@ impl<T: Identified> Device<T> {
     ///
     /// This is not a promise because (at least on Linux) the raw HID device will never return
     /// EAGAIN. It also never seems to signal that it's ready for writing.
-    pub fn write(&self, report: &[u8]) -> Result<usize>
+    fn write(&self, report: &[u8]) -> Result<usize>
     {
         self.io.get_ref().write(report).map_err(|e| e.into())
     }
@@ -102,29 +122,30 @@ impl<T: Identified + 'static> Device<T> {
 }
 
 #[derive(Debug)]
-struct ReadReportInner<T: Identified + 'static, B: AsMut<[u8]>> {
-    device: Device<T>,
+struct ReadReportInner<I: Identified + 'static, T: AsyncHidDevice<I>, B: AsMut<[u8]>> {
+    _0: PhantomData<I>,
+    device: T,
     buf: B,
 }
 
 #[derive(Debug)]
-pub struct ReadReport<T: Identified + 'static, B: AsMut<[u8]>> {
+pub struct ReadReport<I: Identified + 'static, T: AsyncHidDevice<I>, B: AsMut<[u8]>> {
     /// None means the future was completed
-    state: Option<ReadReportInner<T, B>>,
+    state: Option<ReadReportInner<I, T, B>>,
 }
 
 
-impl<T: Identified + 'static, B: AsMut<[u8]>> ReadReport<T, B> {
-    fn new(dev: Device<T>, buf: B) -> Self {
+impl<I: Identified + 'static, T: AsyncHidDevice<I>, B: AsMut<[u8]>> ReadReport<I, T, B> {
+    fn new(dev: T, buf: B) -> Self {
         // I'm borrowing this pattern from the UdpSocket example, but I'm not sure I agree with the
         // choice to have ReadReportInner not have a new. But, maybe its just simpler that way.
-        let inner = ReadReportInner { device: dev, buf: buf };
+        let inner = ReadReportInner { _0: PhantomData, device: dev, buf: buf };
         ReadReport { state: Some(inner) }
     }
 }
 
-impl<T: Identified + 'static, B: AsMut<[u8]>> Future for ReadReport<T, B> {
-    type Item = (Device<T>, B, usize);
+impl<I: Identified + 'static, T: AsyncHidDevice<I>, B: AsMut<[u8]>> Future for ReadReport<I, T, B> {
+    type Item = (T, B, usize);
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -180,14 +201,34 @@ impl MidiFaderCommandArgs {
         }
     }
 
+    /// Sets a word in these args
+    fn set_word(mut self, index: usize, value: u32) -> Result<Self> {
+        let index = size_of::<u32>() * index + 1;
+        match index {
+            i if i < self.data.len()-size_of::<u32>() => {
+                LittleEndian::write_u32(&mut self.data[i..i+size_of::<u32>()], value);
+            },
+            _ => {},
+        }
+        Ok(self)
+    }
+
     /// Gets the command portion of this command
     pub fn command(&self) -> u32 {
         self.get_word(0).unwrap()
     }
 
+    pub fn set_command(self, command: u32) -> Result<Self> {
+        self.set_word(0, command)
+    }
+
     /// Gets a parameter at the passed index for this command
     pub fn parameter(&self, index: usize) -> Option<u32> {
         self.get_word(index+1)
+    }
+
+    pub fn set_parameter(self, index: usize, value: u32) -> Result<Self> {
+        self.set_word(index+1, value)
     }
 }
 
@@ -217,30 +258,35 @@ impl fmt::Debug for MidiFaderCommandArgs {
 }
 
 #[derive(Debug)]
-struct MidiFaderCommandInner {
-    device: Device<MidiFader>,
+struct MidiFaderCommandInner<T: AsyncHidDevice<MidiFader>> {
+    device: T,
     data: MidiFaderCommandArgs,
 }
 
 #[derive(Debug)]
-enum MidiFaderCommandState {
-    Command(Option<MidiFaderCommandInner>),
-    Status(ReadReport<MidiFader, MidiFaderCommandArgs>),
+enum MidiFaderCommandState<T: AsyncHidDevice<MidiFader>> {
+    Command(Option<MidiFaderCommandInner<T>>),
+    Status(ReadReport<MidiFader, T, MidiFaderCommandArgs>),
 }
 
+/// Command for the midi fader device
+///
+/// All communication with a MidiFader is done in a command-response format. This future
+/// encapsulates that format.
 #[derive(Debug)]
-pub struct MidiFaderCommand {
-    state: Option<MidiFaderCommandState>,
+pub struct MidiFaderCommand<T: AsyncHidDevice<MidiFader>> {
+    state: Option<MidiFaderCommandState<T>>,
 }
 
-impl MidiFaderCommand {
-    pub fn new(dev: Device<MidiFader>, args: MidiFaderCommandArgs) -> Self {
+impl<T: AsyncHidDevice<MidiFader>> MidiFaderCommand<T> {
+    /// Creates a new midi fader command
+    pub fn new(dev: T, args: MidiFaderCommandArgs) -> Self {
         MidiFaderCommand { state: Some(MidiFaderCommandState::Command(Some(MidiFaderCommandInner { device: dev, data: args }))) }
     }
 }
 
-impl Future for MidiFaderCommand {
-    type Item = (Device<MidiFader>, MidiFaderCommandArgs, usize);
+impl<T: AsyncHidDevice<MidiFader>> Future for MidiFaderCommand<T> {
+    type Item = (T, MidiFaderCommandArgs, usize);
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -254,7 +300,7 @@ impl Future for MidiFaderCommand {
         self.state = Some(state);
         // Poll the underlying read
         let item = {
-            let mut inner = self.state.as_mut().expect("MidiFaderCommand polled after completion");
+            let mut inner = self.state.as_mut().unwrap();
             match inner {
                 MidiFaderCommandState::Status(ref mut read) => {
                     try_ready!(read.poll())
@@ -266,6 +312,142 @@ impl Future for MidiFaderCommand {
         // The command is now finished
         self.state.take();
         Ok(Async::Ready(item))
+    }
+}
+
+/// Signed parameter value with a size attached
+pub struct ParameterValue {
+    value: i32,
+    size: usize,
+}
+
+impl ParameterValue {
+    pub fn new(value: i32, size: usize) -> Self {
+        ParameterValue { value: value, size: size }
+    }
+
+    pub fn value(&self) -> i32 {
+        self.value
+    }
+
+    pub fn size(&self) -> usize {
+        self.size
+    }
+}
+
+impl From<ParameterValue> for i32 {
+    fn from(val: ParameterValue) -> i32 {
+        val.value
+    }
+}
+
+/// Command for getting a parameter from the midi fader device
+pub struct GetParameter<T: AsyncHidDevice<MidiFader>> {
+    command: Option<MidiFaderCommand<T>>,
+}
+
+impl<T: AsyncHidDevice<MidiFader>> GetParameter<T> {
+    // Build a new get parameter command
+    pub fn new(device: T, parameter: u16) -> Self {
+        let args = MidiFaderCommandArgs::new().
+            set_command(0x40).unwrap().
+            set_parameter(0, 0).unwrap().
+            set_parameter(1, parameter as u32).unwrap();
+        GetParameter { command: Some(MidiFaderCommand::new(device, args)) }
+    }
+}
+
+impl<T: AsyncHidDevice<MidiFader>> Future for GetParameter<T> {
+    type Item = (T, ParameterValue);
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        // Attempt to complete the command
+        let result = {
+            let mut inner = self.command.as_mut().expect("Command polled after completion");
+            try_ready!(inner.poll())
+        };
+
+        // The command is completed
+        self.command.take().unwrap();
+        match result.1.parameter(0).unwrap() as i32 {
+            n if n != 0 => return Err(ErrorKind::DeviceError(n).into()),
+            _ => {},
+        }
+        let raw = result.1.parameter(2).unwrap();
+        let size = result.1.parameter(3).unwrap() as usize;
+        let value = match size {
+            1 => ((raw as u8) as i8) as i32,
+            2 => {
+                let mut buf = [0u8; 2];
+                LittleEndian::write_u16(&mut buf[..], raw as u16);
+                LittleEndian::read_i16(&buf[..]) as i32
+            },
+            4 => raw as i32,
+            v => return Err(ErrorKind::ParameterSizeError(v).into()),
+        };
+        Ok(Async::Ready((result.0, ParameterValue::new(value, size))))
+    }
+}
+
+pub struct SetParameter<T: AsyncHidDevice<MidiFader>> {
+    command: Option<MidiFaderCommand<T>>,
+}
+
+impl<T: AsyncHidDevice<MidiFader>> SetParameter<T> {
+    // Build a new set parameter command
+    pub fn new(device: T, parameter: u16, value: ParameterValue) -> Self {
+        match value.size() {
+            1 | 2 | 4 => {},
+            _ => panic!("Invalid parameter value size"),
+        }
+        let args = MidiFaderCommandArgs::new().
+            set_command(0x80).unwrap().
+            set_parameter(0, 0).unwrap().
+            set_parameter(1, parameter as u32).unwrap().
+            set_parameter(2, value.value() as u32).unwrap().
+            set_parameter(3, value.size() as u32).unwrap();
+        SetParameter { command: Some(MidiFaderCommand::new(device, args)) }
+    }
+}
+
+impl<T: AsyncHidDevice<MidiFader>> Future for SetParameter<T> {
+    type Item = T;
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        // Attempt to complete the command
+        let result = {
+            let mut inner = self.command.as_mut().expect("Command polled after completion");
+            try_ready!(inner.poll())
+        };
+
+        // The command is completed
+        self.command.take().unwrap();
+        match result.1.parameter(0).unwrap() as i32 {
+            n if n != 0 => return Err(ErrorKind::DeviceError(n).into()),
+            _ => {},
+        }
+        Ok(Async::Ready(result.0))
+    }
+}
+
+/// Extensions for talking to the midi fader device
+///
+/// These are implemented for all types that implement AsyncHidDevice<MidiFader>
+pub trait MidiFaderExtensions<T: AsyncHidDevice<MidiFader>> {
+    /// Gets a device parameter
+    fn get_parameter(self, parameter: u16) -> GetParameter<T>;
+    /// Sets a device parameter
+    fn set_parameter(self, parameter: u16, value: ParameterValue) -> SetParameter<T>;
+}
+
+impl<T: AsyncHidDevice<MidiFader>> MidiFaderExtensions<T> for T {
+    fn get_parameter(self, parameter: u16) -> GetParameter<T> {
+        GetParameter::new(self, parameter)
+    }
+    fn set_parameter(self, parameter: u16, value: ParameterValue) -> SetParameter<T> {
+        SetParameter::new(self, parameter, value)
     }
 }
 

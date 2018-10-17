@@ -16,18 +16,18 @@ extern crate udev;
 mod device;
 
 use tokio::prelude::*;
-use device::{Device, MidiFaderCommandArgs, MidiFaderCommand};
+use device::{Device, MidiFaderExtensions};
 
 fn main() {
     let dev = Device::<device::MidiFader>::enumerate().unwrap().take(1).next().expect("No device found").unwrap();
     println!("Dev!");
-    let args = MidiFaderCommandArgs::new();
-    let cmd = MidiFaderCommand::new(dev, args)
-        .and_then(|r| {
-            println!("Got {:?}", r.1);
+    let cmd = dev.get_parameter(0x4006).
+        and_then(|r| {
+            let v: i32 = r.1.into();
+            println!("Got {}", v);
             Ok(())
-        })
-        .map_err(|e| {
+        }).
+        map_err(|e| {
             println!("Oh noes! {:?}", e);
         });
 
