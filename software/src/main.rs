@@ -25,6 +25,10 @@ fn main() {
         and_then(|r| {
             let v: i32 = r.1.into();
             println!("Got {}", v);
+            r.0.device_status()
+        }).
+        and_then(|r| {
+            println!("Firmware version: {}", r.1.version());
             Ok(())
         }).
         map_err(|e| {

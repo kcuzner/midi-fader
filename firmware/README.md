@@ -118,18 +118,17 @@ Bytes 8-11: Parameter 1
 
 Words should be packed LSB first.
 
-Every OUT report will be 
-
 An IN report will contain the command number of the command it is responding to.
 Parameters can be IN, OUT, or both. The parameters will be echoed in the
 corresponding OUT report.
 
-#### Status (WIP)
+#### Status
 
 The Status command has the following format:
 
  - Command: 0x00
  - Parameter 0 (IN): Constant 0xDEADBEEF
+ - Parameter 1 (IN): Number of channels
  - Remaining parameters (IN): Null terminated git version string of the firmware
 
 #### Set Parameter

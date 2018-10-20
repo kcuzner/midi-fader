@@ -15,6 +15,8 @@ GENERATE_STORAGE=STORAGE
 GENERATE_STORAGE_SRC=_gen_storage.c
 GENERATE_STORAGE_HDR=_gen_storage.h
 
+GENERATE_FIRMWARE_SRC=_gen_firmware.c
+
 OBJ := $(addprefix $(OBJDIR)/,$(notdir $(SRC:.c=.o)))
 OBJ += $(addprefix $(OBJDIR)/,$(notdir $(ASM:.s=.o)))
 ifneq ($(filter $(GENERATE), $(GENERATE_USB_DESCRIPTOR)),)
@@ -25,6 +27,8 @@ ifneq ($(filter $(GENERATE), $(GENERATE_STORAGE)),)
 	GEN_OBJ += $(GENDIR)/$(GENERATE_STORAGE_SRC:.c=.o)
 	GEN_TARGETS += $(GENDIR)/$(GENERATE_STORAGE_SRC:.c=.o)
 endif
+GEN_OBJ += $(GENDIR)/$(GENERATE_FIRMWARE_SRC:.c=.o)
+GEN_TARGETS += $(GENDIR)/$(GENERATE_FIRMWARE_SRC:.c=.o)
 ALL_OBJ := $(OBJ) $(GEN_OBJ)
 DEP := $(addprefix $(OBJDIR)/,$(notdir $(SRC:.c=.d)))
 
@@ -54,6 +58,9 @@ $(GENDIR)/$(GENERATE_STORAGE_SRC): $(STORAGESRC) $(STORAGEGEN_SCRIPT)
 	$(STORAGEGEN) -os $(GENDIR)/$(GENERATE_STORAGE_SRC) \
 		-oh $(GENDIR)/$(GENERATE_STORAGE_HDR) \
 		$(STORAGESRC)
+$(GENDIR)/$(GENERATE_FIRMWARE_SRC):
+	@mkdir -p $(GENDIR)
+	$(FIRMWAREGEN) $@
 
 #
 # Compilation

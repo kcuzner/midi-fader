@@ -3,7 +3,7 @@
 //! This abstracts away the OS-layer HID implementation
 
 use byteorder::{ByteOrder, LittleEndian};
-use std::{fmt, io};
+use std::{fmt, io, self};
 use std::marker::PhantomData;
 use std::mem::size_of;
 use mio;
@@ -23,6 +23,7 @@ use self::unix as os;
 error_chain! {
     foreign_links {
         Io(io::Error);
+        Utf8(std::str::Utf8Error);
     }
     links {
         ImplError(os::Error, os::ErrorKind);
@@ -35,6 +36,10 @@ error_chain! {
         ParameterSizeError(s: usize) {
             description("The parameter was of an invalid size"),
             display("The parameter was of an invalid size: {}", s),
+        }
+        UnexpectedResponseError {
+            description("Unexpected device response"),
+            display("Unexpected device response"),
         }
     }
 }
@@ -230,6 +235,11 @@ impl MidiFaderCommandArgs {
     pub fn set_parameter(self, index: usize, value: u32) -> Result<Self> {
         self.set_word(index+1, value)
     }
+
+    /// Gets the version string located in bytes 8-63 of the report
+    fn version(&self) -> Result<&str> {
+        std::str::from_utf8(&self.data[9..65]).map_err(|e| e.into())
+    }
 }
 
 impl AsRef<[u8]> for MidiFaderCommandArgs {
@@ -315,6 +325,26 @@ impl<T: AsyncHidDevice<MidiFader>> Future for MidiFaderCommand<T> {
     }
 }
 
+/// Attached midi fader device status
+pub struct DeviceStatus {
+    channels: u32,
+    version: String,
+}
+
+impl DeviceStatus {
+    fn new(channels: u32, version: &str) -> Self {
+        DeviceStatus { channels: channels, version: version.to_owned() }
+    }
+
+    pub fn channels(&self) -> u32 {
+        self.channels
+    }
+
+    pub fn version(&self) -> &str {
+        &self.version
+    }
+}
+
 /// Signed parameter value with a size attached
 pub struct ParameterValue {
     value: i32,
@@ -338,6 +368,43 @@ impl ParameterValue {
 impl From<ParameterValue> for i32 {
     fn from(val: ParameterValue) -> i32 {
         val.value
+    }
+}
+
+/// Command for getting the device status from the midi fader device
+pub struct Status<T: AsyncHidDevice<MidiFader>> {
+    command: Option<MidiFaderCommand<T>>,
+}
+
+impl<T: AsyncHidDevice<MidiFader>> Status<T> {
+    pub fn new(device: T) -> Self {
+        let args = MidiFaderCommandArgs::new().
+            set_command(0x00).unwrap();
+        Status { command: Some(MidiFaderCommand::new(device, args)) }
+    }
+}
+
+impl<T: AsyncHidDevice<MidiFader>> Future for Status<T> {
+    type Item = (T, DeviceStatus);
+    type Error = Error;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        const MAGIC: u32 = 0xDEADBEEF;
+
+        // Attempt to complete the command
+        let result = {
+            let mut inner = self.command.as_mut().expect("Command polled after completion");
+            try_ready!(inner.poll())
+        };
+
+        // The command is completed
+        self.command.take().unwrap();
+        match result.1.parameter(0).unwrap() as u32 {
+            n if n != MAGIC => return Err(ErrorKind::UnexpectedResponseError.into()),
+            _ => {}
+        }
+        let status = DeviceStatus::new(result.1.parameter(1).unwrap(), result.1.version().unwrap());
+        Ok(Async::Ready((result.0, status)))
     }
 }
 
@@ -436,6 +503,8 @@ impl<T: AsyncHidDevice<MidiFader>> Future for SetParameter<T> {
 ///
 /// These are implemented for all types that implement AsyncHidDevice<MidiFader>
 pub trait MidiFaderExtensions<T: AsyncHidDevice<MidiFader>> {
+    /// Gets the device status
+    fn device_status(self) -> Status<T>;
     /// Gets a device parameter
     fn get_parameter(self, parameter: u16) -> GetParameter<T>;
     /// Sets a device parameter
@@ -443,6 +512,9 @@ pub trait MidiFaderExtensions<T: AsyncHidDevice<MidiFader>> {
 }
 
 impl<T: AsyncHidDevice<MidiFader>> MidiFaderExtensions<T> for T {
+    fn device_status(self) -> Status<T> {
+        Status::new(self)
+    }
     fn get_parameter(self, parameter: u16) -> GetParameter<T> {
         GetParameter::new(self, parameter)
     }
