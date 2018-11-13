@@ -2,6 +2,15 @@
 
 By Kevin Cuzner
 
+## Project Status
+
+ * PCB complete and working (with an additional load added to reduce regulator noise)
+ * Firmware feature-complete and mostly working
+   * Emulates as HID and USB-MIDI devices
+   * Not tested on Windows yet
+ * Case OpenSCAD in progress
+ * Configuration host software in progress
+
 ## Featureset
 
  * Two 60mm analog fader inputs
