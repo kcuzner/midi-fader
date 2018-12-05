@@ -20,6 +20,7 @@ These are names of Arch Linux packages.
 
 - `arm-none-eabi-gcc`
 - `arm-none-eabi-binutils`
+- `arm-none-eabi-newlib`
 - `python` (Python 3)
 - `openocd`
 
