@@ -6,6 +6,9 @@ extern crate error_chain;
 extern crate errno;
 #[macro_use]
 extern crate futures;
+extern crate glium;
+extern crate imgui;
+extern crate imgui_glium_renderer;
 extern crate libc;
 extern crate mio;
 extern crate tokio;
@@ -14,12 +17,14 @@ extern crate tokio;
 extern crate udev;
 
 mod device;
+mod config;
+mod gui;
 
 use tokio::prelude::*;
 use device::{Device, MidiFaderExtensions};
 
 fn main() {
-    let dev = Device::<device::MidiFader>::enumerate().unwrap().take(1).next().expect("No device found").unwrap();
+    /*let dev = Device::<device::MidiFader>::enumerate().unwrap().take(1).next().expect("No device found").unwrap();
     println!("Dev!");
     let cmd = dev.get_parameter(0x4006).
         and_then(|r| {
@@ -35,5 +40,6 @@ fn main() {
             println!("Oh noes! {:?}", e);
         });
 
-    tokio::run(cmd);
+    tokio::run(cmd);*/
+    gui::gui_main();
 }
