@@ -47,13 +47,13 @@
  *  </foreach>
  * </descriptor>
  * <descriptor id="manufacturer" type="0x03" wIndex="0x0409">
- *  <hidden name="wLang" size="2">0x0409</hidden>
+ *  <property name="wLang" size="2">0x0409</property>
  *  <length name="bLength" size="1" />
  *  <type name="bDescriptorType" size="1" />
  *  <string name="wString">kevincuzner.com</string>
  * </descriptor>
  * <descriptor id="product" type="0x03" wIndex="0x0409">
- *  <hidden name="wLang" size="2">0x0409</hidden>
+ *  <property name="wLang" size="2">0x0409</property>
  *  <length name="bLength" size="1" />
  *  <type name="bDescriptorType" size="1" />
  *  <string name="wString">Midi-Fader</string>

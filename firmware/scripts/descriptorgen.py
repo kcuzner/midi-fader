@@ -268,6 +268,26 @@ class SizedContent(BinaryContent):
             yield ', '.join(parts)
 
 @child_of(Descriptor)
+@handles_tag('property')
+class PropertyContent(SizedContent):
+    """
+    Sized content which has a name and content, but only generates source and a
+    size under certain conditions
+    """
+    def __init__(self, el, parent=None):
+        if not el.text:
+            raise ValueError('PropertyContent expects a non-empty element text')
+        super().__init__(el, parent)
+    def __len__(self):
+        return 0
+    def to_source(self):
+        return ''
+    def property_len(self):
+        return super().__len__()
+    def property_source(self):
+        return super().to_source()
+
+@child_of(Descriptor)
 @handles_tag('hidden')
 class HiddenContent(SizedContent):
     """
@@ -439,7 +459,8 @@ class EchoContent(BinaryContent):
             for line in d:
                 yield line + ','
     def __len__(self):
-        return sum([len(d) for d in self.__to_echo()])
+        lens = [d.property_len() if hasattr(d, 'property_len') else len(d) for d in self.__to_echo()]
+        return sum(lens)
 
 @child_of(Descriptor)
 @handles_tag('children')
