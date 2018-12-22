@@ -366,15 +366,63 @@ pub struct GroupConfig {
 
 impl GroupConfig {
     fn get_group_configuration<T: AsyncHidDevice<MidiFader>>(device: T, index: u32) -> impl Future<Item=(T, Self), Error=Error> {
+        Fader::get_fader_configuration(device, index)
+            .and_then(move |res| {
+                Button::get_button_configuration(res.0, index)
+                    .join(Ok(res.1))
+            })
+            .and_then(move |(res, fader)| {
+                let group = GroupConfig {
+                    index: index,
+                    button: res.1,
+                    fader: fader
+                };
+                Ok((res.0, group))
+            })
     }
 }
 
 pub struct DeviceConfig<T: AsyncHidDevice<MidiFader>> {
-    device: T
+    device: T,
+    groups: [GroupConfig; 8],
 }
 
 impl<T: AsyncHidDevice<MidiFader>> DeviceConfig<T> {
     pub fn new(device: T) -> impl Future<Item=Self, Error=Error> {
+        GroupConfig::get_group_configuration(device, 0)
+            .and_then(|res| {
+                GroupConfig::get_group_configuration(res.0, 1)
+                    .join(Ok(res.1))
+            })
+            .and_then(|(res, group0)| {
+                GroupConfig::get_group_configuration(res.0, 2)
+                    .join(Ok((group0, res.1)))
+            })
+            .and_then(|(res, groups)| {
+                GroupConfig::get_group_configuration(res.0, 3)
+                    .join(Ok((groups.0, groups.1, res.1)))
+            })
+            .and_then(|(res, groups)| {
+                GroupConfig::get_group_configuration(res.0, 4)
+                    .join(Ok((groups.0, groups.1, groups.2, res.1)))
+            })
+            .and_then(|(res, groups)| {
+                GroupConfig::get_group_configuration(res.0, 5)
+                    .join(Ok((groups.0, groups.1, groups.2, groups.3, res.1)))
+            })
+            .and_then(|(res, groups)| {
+                GroupConfig::get_group_configuration(res.0, 6)
+                    .join(Ok((groups.0, groups.1, groups.2, groups.3, groups.4, res.1)))
+            })
+            .and_then(|(res, groups)| {
+                GroupConfig::get_group_configuration(res.0, 7)
+                    .join(Ok((groups.0, groups.1, groups.2, groups.3, groups.4, groups.5,
+                              res.1)))
+            })
+            .and_then(|(res, groups)| {
+                Ok(DeviceConfig { device: res.0, groups: [groups.0, groups.1, groups.2,
+                    groups.3, groups.4, groups.5, groups.6, res.1] })
+            })
     }
 }
 
