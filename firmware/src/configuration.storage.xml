@@ -82,63 +82,63 @@
     <value name="FDR0_CC" parameter="0x2003" type="uint8">7</value>
     <value name="FDR0_CC_MIN" parameter="0x2004" type="uint8">0</value>
     <value name="FDR0_CC_MAX" parameter="0x2005" type="uint8">127</value>
-    <value name="FDR0_PITCH_MIN" parameter="0x2006" type="uint16">-8192</value>
-    <value name="FDR0_PITCH_MAX" parameter="0x2007" type="uint16">8192</value>
+    <value name="FDR0_PITCH_MIN" parameter="0x2006" type="uint16">0</value>
+    <value name="FDR0_PITCH_MAX" parameter="0x2007" type="uint16">16383</value>
 
     <value name="FDR1_CH" parameter="0x2101" type="uint8">2</value>
     <value name="FDR1_MODE" parameter="0x2102" type="uint8">CFG_MODE_PITCH</value>
     <value name="FDR1_CC" parameter="0x2103" type="uint8">7</value>
     <value name="FDR1_CC_MIN" parameter="0x2104" type="uint8">0</value>
     <value name="FDR1_CC_MAX" parameter="0x2105" type="uint8">127</value>
-    <value name="FDR1_PITCH_MIN" parameter="0x2106" type="uint16">-8192</value>
-    <value name="FDR1_PITCH_MAX" parameter="0x2107" type="uint16">8192</value>
+    <value name="FDR1_PITCH_MIN" parameter="0x2106" type="uint16">0</value>
+    <value name="FDR1_PITCH_MAX" parameter="0x2107" type="uint16">16383</value>
 
     <value name="FDR2_CH" parameter="0x2201" type="uint8">3</value>
     <value name="FDR2_MODE" parameter="0x2202" type="uint8">CFG_MODE_PITCH</value>
     <value name="FDR2_CC" parameter="0x2203" type="uint8">7</value>
     <value name="FDR2_CC_MIN" parameter="0x2204" type="uint8">0</value>
     <value name="FDR2_CC_MAX" parameter="0x2205" type="uint8">127</value>
-    <value name="FDR2_PITCH_MIN" parameter="0x2206" type="uint16">-8192</value>
-    <value name="FDR2_PITCH_MAX" parameter="0x2207" type="uint16">8192</value>
+    <value name="FDR2_PITCH_MIN" parameter="0x2206" type="uint16">0</value>
+    <value name="FDR2_PITCH_MAX" parameter="0x2207" type="uint16">16383</value>
 
     <value name="FDR3_CH" parameter="0x2301" type="uint8">4</value>
     <value name="FDR3_MODE" parameter="0x2302" type="uint8">CFG_MODE_PITCH</value>
     <value name="FDR3_CC" parameter="0x2303" type="uint8">7</value>
     <value name="FDR3_CC_MIN" parameter="0x2304" type="uint8">0</value>
     <value name="FDR3_CC_MAX" parameter="0x2305" type="uint8">127</value>
-    <value name="FDR3_PITCH_MIN" parameter="0x2306" type="uint16">-8192</value>
-    <value name="FDR3_PITCH_MAX" parameter="0x2307" type="uint16">8192</value>
+    <value name="FDR3_PITCH_MIN" parameter="0x2306" type="uint16">0</value>
+    <value name="FDR3_PITCH_MAX" parameter="0x2307" type="uint16">16383</value>
 
     <value name="FDR4_CH" parameter="0x2401" type="uint8">5</value>
     <value name="FDR4_MODE" parameter="0x2402" type="uint8">CFG_MODE_PITCH</value>
     <value name="FDR4_CC" parameter="0x2403" type="uint8">7</value>
     <value name="FDR4_CC_MIN" parameter="0x2404" type="uint8">0</value>
     <value name="FDR4_CC_MAX" parameter="0x2405" type="uint8">127</value>
-    <value name="FDR4_PITCH_MIN" parameter="0x2406" type="uint16">-8192</value>
-    <value name="FDR4_PITCH_MAX" parameter="0x2407" type="uint16">8192</value>
+    <value name="FDR4_PITCH_MIN" parameter="0x2406" type="uint16">0</value>
+    <value name="FDR4_PITCH_MAX" parameter="0x2407" type="uint16">16383</value>
 
     <value name="FDR5_CH" parameter="0x2501" type="uint8">6</value>
     <value name="FDR5_MODE" parameter="0x2502" type="uint8">CFG_MODE_PITCH</value>
     <value name="FDR5_CC" parameter="0x2503" type="uint8">7</value>
     <value name="FDR5_CC_MIN" parameter="0x2504" type="uint8">0</value>
     <value name="FDR5_CC_MAX" parameter="0x2505" type="uint8">127</value>
-    <value name="FDR5_PITCH_MIN" parameter="0x2506" type="uint16">-8192</value>
-    <value name="FDR5_PITCH_MAX" parameter="0x2507" type="uint16">8192</value>
+    <value name="FDR5_PITCH_MIN" parameter="0x2506" type="uint16">0</value>
+    <value name="FDR5_PITCH_MAX" parameter="0x2507" type="uint16">16383</value>
 
     <value name="FDR6_CH" parameter="0x2601" type="uint8">7</value>
     <value name="FDR6_MODE" parameter="0x2602" type="uint8">CFG_MODE_PITCH</value>
     <value name="FDR6_CC" parameter="0x2603" type="uint8">7</value>
     <value name="FDR6_CC_MIN" parameter="0x2604" type="uint8">0</value>
     <value name="FDR6_CC_MAX" parameter="0x2605" type="uint8">127</value>
-    <value name="FDR6_PITCH_MIN" parameter="0x2606" type="uint16">-8192</value>
-    <value name="FDR6_PITCH_MAX" parameter="0x2607" type="uint16">8192</value>
+    <value name="FDR6_PITCH_MIN" parameter="0x2606" type="uint16">0</value>
+    <value name="FDR6_PITCH_MAX" parameter="0x2607" type="uint16">16383</value>
 
     <value name="FDR7_CH" parameter="0x2701" type="uint8">8</value>
     <value name="FDR7_MODE" parameter="0x2702" type="uint8">CFG_MODE_PITCH</value>
     <value name="FDR7_CC" parameter="0x2703" type="uint8">7</value>
     <value name="FDR7_CC_MIN" parameter="0x2704" type="uint8">0</value>
     <value name="FDR7_CC_MAX" parameter="0x2705" type="uint8">127</value>
-    <value name="FDR7_PITCH_MIN" parameter="0x2706" type="uint16">-8192</value>
-    <value name="FDR7_PITCH_MAX" parameter="0x2707" type="uint16">8192</value>
+    <value name="FDR7_PITCH_MIN" parameter="0x2706" type="uint16">0</value>
+    <value name="FDR7_PITCH_MAX" parameter="0x2707" type="uint16">16383</value>
 </storage>
 
