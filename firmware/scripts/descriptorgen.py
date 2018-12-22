@@ -430,12 +430,14 @@ class ForeachDescriptor(TagHandler):
     def __init__(self, el, parent):
         self.parent = parent
         self.associated = attrib_bool(el, 'associated')
+        self.unique = attrib_bool(el, 'unique')
         self.type = int(el.attrib['type'], 0)
         super().__init__(el, parent)
     def post_parse(self, descriptor_collection):
         super().post_parse(descriptor_collection)
         self.child_descriptors = [d for d in descriptor_collection.find_by_type(self.type)\
                 if self.parent != d and (not self.associated or d.parentid == self.parent.id)]
+        self.sources = list([(len(c), list(c)) for c in self.children])
     def __len__(self):
         return sum([len(c) for c in self.children if hasattr(c, '__len__')])
     def to_source(self):
@@ -452,14 +454,21 @@ class EchoContent(BinaryContent):
         self.parent = parent
         super().__init__(el, parent)
     def __to_echo(self):
-        return [c for d in self.parent.child_descriptors\
+        descriptors = [c for d in self.parent.child_descriptors\
                 for c in d.children if isinstance(c, BinaryContent) and c.name == self.name]
+        data = [
+            (d.property_len() if hasattr(d, 'property_len') else len(d),
+                ','.join(d)) for d in descriptors]
+        if hasattr(self.parent, 'unique') and self.parent.unique:
+            data = set(data)
+        else:
+            data = list(data)
+        return data
     def __iter__(self):
-        for d in self.__to_echo():
-            for line in d:
-                yield line + ','
+        for l, c in self.__to_echo():
+            yield c + ','
     def __len__(self):
-        lens = [d.property_len() if hasattr(d, 'property_len') else len(d) for d in self.__to_echo()]
+        lens = [e[0] for e in self.__to_echo()]
         return sum(lens)
 
 @child_of(Descriptor)
@@ -558,7 +567,6 @@ class DescriptorCollectionBuilder(object):
     - If there are any strings, the language descriptor will be automatically
       generated
     - All "id" attributes must be unique
-    
     """
     def __init__(self):
         self.descriptors = {}
@@ -574,7 +582,7 @@ class DescriptorCollectionBuilder(object):
                 self.descriptors[d.type] = [d]
             else:
                 self.descriptors[d.type].append(d)
-    
+
     def __iter__(self):
         for n, arry in self.descriptors.items():
             for d in arry:
@@ -628,7 +636,6 @@ class DescriptorCollection(object):
             # Handle post-parse events
             desc.post_parse(self)
 
-        
     def find_by_id(self, idname):
         return self.by_id[idname] if idname in self.by_id else None
 

@@ -42,7 +42,7 @@
  * <descriptor id="lang" type="0x03" first="first">
  *  <length name="bLength" size="1" />
  *  <type name="bDescriptorType" size="1" />
- *  <foreach type="0x03">
+ *  <foreach type="0x03" unique="unique">
  *    <echo name="wLang" />
  *  </foreach>
  * </descriptor>
