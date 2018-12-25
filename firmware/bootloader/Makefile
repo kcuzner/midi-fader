@@ -32,6 +32,7 @@ LSCRIPT = STM32F042X6_Bootloader.ld
 
 # Flag modifications
 OBJCOPY_FLAGS = --remove-section .storage
+GCFLAGS += -DUSB_DEBUG
 
 all:: $(BINDIR)/$(PROJECT).bin $(BINDIR)/$(PROJECT).hex
 

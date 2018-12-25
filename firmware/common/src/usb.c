@@ -152,8 +152,10 @@ typedef struct {
  */
 
 static void usb_debug_log_tx(uint8_t endpoint, void *addr, uint8_t len, uint16_t remaining);
+static void usb_debug_log_control(USBControlState state, USBToken token, USBControlState next_state);
 
 #ifdef USB_DEBUG
+
 typedef struct {
     uint8_t endpoint;
     void * addr;
@@ -177,9 +179,46 @@ static void usb_debug_log_tx(uint8_t endpoint, void *addr, uint8_t len, uint16_t
     usb_debug_history[index] = entry;
 }
 
+typedef struct {
+    USBControlState state;
+    USBToken token;
+    USBControlState next_state;
+    USBSetupPacket setup;
+    void *tx_addr;
+    void *tx_pos;
+    uint16_t tx_len;
+    void *rx_addr;
+    void *rx_pos;
+    uint16_t rx_len;
+} USBControlHistoryEntry;
+uint32_t usb_debug_control_counter = 0;
+USBControlHistoryEntry usb_debug_control[USB_DEBUG_HISTORY_SIZE];
+
+static void usb_debug_log_control(USBControlState state, USBToken token, USBControlState next_state)
+{
+    USBControlHistoryEntry entry = {
+        .state = state,
+        .token = token,
+        .next_state = next_state,
+        .setup = endpoint_status[0].last_setup,
+        .tx_addr = endpoint_status[0].tx_buf,
+        .tx_pos = endpoint_status[0].tx_pos,
+        .tx_len = endpoint_status[0].tx_len,
+        .rx_addr = endpoint_status[0].rx_buf,
+        .rx_pos = endpoint_status[0].rx_pos,
+        .rx_len = endpoint_status[0].rx_len,
+    };
+    uint32_t index = usb_debug_control_counter++ % USB_DEBUG_HISTORY_SIZE;
+    usb_debug_control[index] = entry;
+}
+
 #else
 
 static void usb_debug_log_tx(uint8_t endpoint, void *addr, uint8_t len, uint16_t remaining)
+{
+}
+
+static void usb_debug_log_control(USBControlState state, USBToken token, USBControlState next_state)
 {
 }
 
@@ -805,6 +844,7 @@ static void usb_handle_endp0(USBToken token)
 {
     static USBControlState state = USB_ST_SETUP;
 
+    USBControlState start_state = state;
 
     for (uint32_t i = 0; i < USB_CTL_STATE_COUNT; i++)
     {
@@ -817,6 +857,8 @@ static void usb_handle_endp0(USBToken token)
             }
         }
     }
+
+    usb_debug_log_control(start_state, token, state);
 }
 
 /**
