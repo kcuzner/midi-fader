@@ -111,6 +111,7 @@ bootloaderClean:
 #
 
 $(BINDIR)/openocd.pid:
+	@mkdir -p $(dir $@)
 	openocd/run-openocd-server.sh $(OCD) $@
 
 #
