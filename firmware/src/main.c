@@ -26,7 +26,7 @@
  * <descriptor id="device" type="0x01">
  *  <length name="bLength" size="1" />
  *  <type name="bDescriptorType" size="1" />
- *  <word name="bcdUSB">0x0200</word>
+ *  <word name="bcdUSB">0x0110</word>
  *  <byte name="bDeviceClass">0</byte>
  *  <byte name="bDeviceSubClass">0</byte>
  *  <byte name="bDeviceProtocol">0</byte>
