@@ -96,6 +96,8 @@ gdb: $(BINDIR)/openocd.pid
 gdb-bootloader: $(BINDIR)/openocd.pid
 	$(GDB) -ex "target remote localhost:3333" $(BOOT_BINDIR)/$(BOOT_BINARY).elf
 
+start: $(BINDIR)/openocd.pid
+
 stop:
 	-echo shutdown | nc localhost 4444
 
@@ -109,6 +111,7 @@ bootloaderClean:
 #
 
 $(BINDIR)/openocd.pid:
+	@mkdir -p $(dir $@)
 	openocd/run-openocd-server.sh $(OCD) $@
 
 #

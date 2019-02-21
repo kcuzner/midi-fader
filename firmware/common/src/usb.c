@@ -151,35 +151,224 @@ typedef struct {
  * Debug functionality
  */
 
-static void usb_debug_log_tx(uint8_t endpoint, void *addr, uint8_t len, uint16_t remaining);
-
 #ifdef USB_DEBUG
-typedef struct {
-    uint8_t endpoint;
-    void * addr;
-    uint8_t len;
-    uint16_t remaining;
-} USBTxHistoryEntry;
 
-#define USB_DEBUG_HISTORY_SIZE 64
-uint32_t usb_debug_history_counter = 0;
-USBTxHistoryEntry usb_debug_history[USB_DEBUG_HISTORY_SIZE];
+typedef enum { USB_LOG_RESET, USB_LOG_ISTR, USB_LOG_STALL, USB_LOG_TX,
+    USB_LOG_TX_DONE, USB_LOG_RX_START, USB_LOG_RX_PACKET, USB_LOG_CTL }
+    USBLogEntryType;
+
+typedef struct {
+    uint32_t index;
+    uint8_t endpoint;
+    USBLogEntryType type;
+    union {
+        struct {
+            uint16_t endpr;
+        } istr;
+        struct {
+            USBDirection direction;
+            uint16_t endpr;
+        } stall;
+        struct {
+            void * addr;
+            uint8_t len;
+            uint16_t remaining;
+            uint16_t endpr;
+        } transmit;
+        struct {
+            void * addr;
+            uint16_t endpr;
+        } transmit_done;
+        struct {
+            void * addr;
+            uint16_t size;
+            uint16_t endpr;
+        } receive_start;
+        struct {
+            void * addr;
+            uint8_t len;
+            uint16_t completed;
+            USBRXStatus result;
+            uint16_t endpr;
+        } receive_packet;
+        struct {
+            USBControlState state;
+            USBToken token;
+            USBControlState next_state;
+            USBSetupPacket setup;
+        } control;
+    };
+} __attribute__ (( packed )) USBLogEntry;
+
+// Size of the debug log (note that each entry is huge)
+#define USB_DEBUG_LOG_SIZE 128
+// If this is defined, the beginning of the log is preserved
+#define USB_DEBUG_LOG_PRESERVE
+uint32_t usb_debug_log_counter = 0;
+USBLogEntry usb_debug_log[USB_DEBUG_LOG_SIZE];
+
+static inline void usb_debug_log_commit(USBLogEntry entry)
+{
+#ifdef USB_DEBUG_LOG_PRESERVE
+    if (usb_debug_log_counter < USB_DEBUG_LOG_SIZE)
+    {
+#endif // USB_DEBUG_LOG_PRESERVE
+        uint32_t index = usb_debug_log_counter++ % USB_DEBUG_LOG_SIZE;
+        usb_debug_log[index] = entry;
+#ifdef USB_DEBUG_LOG_PRESERVE
+    }
+#endif // USB_DEBUG_LOG_PRESERVE
+}
+
+static void usb_debug_log_reset(void)
+{
+    USBLogEntry entry = {
+        .index = usb_debug_log_counter,
+        .endpoint = 0,
+        .type = USB_LOG_RESET,
+    };
+    usb_debug_log_commit(entry);
+}
+
+static void usb_debug_log_istr(uint8_t endpoint)
+{
+    USBLogEntry entry = {
+        .index = usb_debug_log_counter,
+        .endpoint = endpoint,
+        .type = USB_LOG_ISTR,
+        .istr = {
+            .endpr = USB_ENDPOINT_REGISTER(endpoint),
+        },
+    };
+    usb_debug_log_commit(entry);
+}
+
+static void usb_debug_log_stall(uint8_t endpoint, USBDirection direction)
+{
+    USBLogEntry entry = {
+        .index = usb_debug_log_counter,
+        .endpoint = endpoint,
+        .type = USB_LOG_STALL,
+        .stall = {
+            .direction = direction,
+            .endpr = USB_ENDPOINT_REGISTER(endpoint),
+        },
+    };
+    usb_debug_log_commit(entry);
+}
 
 static void usb_debug_log_tx(uint8_t endpoint, void *addr, uint8_t len, uint16_t remaining)
 {
-    USBTxHistoryEntry entry = {
+    USBLogEntry entry = {
+        .index = usb_debug_log_counter,
         .endpoint = endpoint,
-        .addr = addr,
-        .len = len,
-        .remaining = remaining,
+        .type = USB_LOG_TX,
+        .transmit = {
+            .addr = addr,
+            .len = len,
+            .remaining = remaining,
+            .endpr = USB_ENDPOINT_REGISTER(endpoint),
+        },
     };
-    uint32_t index = usb_debug_history_counter++ % USB_DEBUG_HISTORY_SIZE;
-    usb_debug_history[index] = entry;
+    usb_debug_log_commit(entry);
+}
+
+static void usb_debug_log_tx_done(uint8_t endpoint, void *addr)
+{
+    USBLogEntry entry = {
+        .index = usb_debug_log_counter,
+        .endpoint = endpoint,
+        .type = USB_LOG_TX_DONE,
+        .transmit_done = {
+            .addr = addr,
+        },
+    };
+    usb_debug_log_commit(entry);
+}
+
+static void usb_debug_log_rx_begin(uint8_t endpoint, void *addr, uint16_t size)
+{
+    USBLogEntry entry = {
+        .index = usb_debug_log_counter,
+        .endpoint = endpoint,
+        .type = USB_LOG_RX_START,
+        .receive_start = {
+            .addr = addr,
+            .size = size,
+            .endpr = USB_ENDPOINT_REGISTER(endpoint),
+        },
+    };
+    usb_debug_log_commit(entry);
+}
+
+static void usb_debug_log_rx_packet(uint8_t endpoint, void *addr, uint8_t len,
+        uint16_t completed, USBRXStatus result)
+{
+    USBLogEntry entry = {
+        .index = usb_debug_log_counter,
+        .endpoint = endpoint,
+        .type = USB_LOG_RX_PACKET,
+        .receive_packet = {
+            .addr = addr,
+            .len = len,
+            .completed = completed,
+            .result = result,
+            .endpr = USB_ENDPOINT_REGISTER(endpoint)
+        },
+    };
+    usb_debug_log_commit(entry);
+}
+
+static void usb_debug_log_control(uint8_t endpoint, USBControlState state, USBToken token,
+        USBControlState next_state, USBSetupPacket setup)
+{
+    USBLogEntry entry = {
+        .index = usb_debug_log_counter,
+        .endpoint = endpoint,
+        .type = USB_LOG_CTL,
+        .control = {
+            .state = state,
+            .token = token,
+            .next_state = next_state,
+            .setup = setup,
+        },
+    };
+    usb_debug_log_commit(entry);
 }
 
 #else
 
+static void usb_debug_log_reset(void)
+{
+}
+
+static void usb_debug_log_istr(uint8_t endpoint)
+{
+}
+
+static void usb_debug_log_stall(uint8_t endpoint, USBDirection direction)
+{
+}
+
 static void usb_debug_log_tx(uint8_t endpoint, void *addr, uint8_t len, uint16_t remaining)
+{
+}
+
+static void usb_debug_log_tx_done(uint8_t endpoint, void *addr)
+{
+}
+
+static void usb_debug_log_rx_begin(uint8_t endpoint, void *addr, uint16_t size)
+{
+}
+
+static void usb_debug_log_rx_packet(uint8_t endpoint, void *addr, uint8_t len,
+        uint16_t remaining, USBRXStatus result)
+{
+}
+
+static void usb_debug_log_control(uint8_t endpoint, USBControlState state, USBToken token,
+        USBControlState next_state, USBSetupPacket setup)
 {
 }
 
@@ -355,7 +544,10 @@ static void usb_endpoint_send_next_packet(uint8_t endpoint)
 
     //is transmission finished (or never started)?
     if (!endpoint_status[endpoint].tx_pos || !packetSize)
+    {
+        usb_debug_log_tx_done(endpoint, endpoint_status[endpoint].tx_buf);
         return;
+    }
 
     //if we get this far, we have something to transmit, even if its nothing
 
@@ -378,7 +570,7 @@ static void usb_endpoint_send_next_packet(uint8_t endpoint)
     //set count to actual packet length
     *APPLICATION_ADDR(&bt[endpoint].tx_count) = len;
 
-    usb_debug_log_tx(endpoint, endpoint_status[endpoint].tx_pos, len, endpoint_status[endpoint].tx_len - completedLength);
+    void *addr = endpoint_status[endpoint].tx_pos;
 
     //There are now three cases:
     // 1. We still have bytes to send
@@ -420,6 +612,7 @@ static void usb_endpoint_send_next_packet(uint8_t endpoint)
 
     //Inform the endpoint that the packet is ready.
     usb_set_endpoint_status(endpoint, USB_EP_TX_VALID, USB_EPTX_STAT);
+    usb_debug_log_tx(endpoint, addr, len, endpoint_status[endpoint].tx_len - completedLength);
 }
 
 void usb_endpoint_send(uint8_t endpoint, void *buf, uint16_t len)
@@ -505,6 +698,8 @@ static USBRXStatus usb_endpoint_end_packet_receive(uint8_t endpoint)
         //reception has ended as well. We got what we got.
         endpoint_status[endpoint].rx_len = completedLength;
         endpoint_status[endpoint].rx_pos = 0;
+        usb_debug_log_rx_packet(endpoint, endpoint_status[endpoint].rx_buf,
+                8, completedLength, USB_RX_DONE | USB_RX_SETUP);
         return USB_RX_DONE | USB_RX_SETUP;
     }
     else
@@ -555,6 +750,8 @@ static USBRXStatus usb_endpoint_end_packet_receive(uint8_t endpoint)
             //this is the end of reception. We no longer will receive. Update rx_len to actual received length.
             endpoint_status[endpoint].rx_len = completedLength + len;
             endpoint_status[endpoint].rx_pos = 0;
+            usb_debug_log_rx_packet(endpoint, endpoint_status[endpoint].rx_buf,
+                    len, completedLength+len, USB_RX_DONE);
             return USB_RX_DONE;
         }
         else
@@ -562,6 +759,8 @@ static USBRXStatus usb_endpoint_end_packet_receive(uint8_t endpoint)
             //receive at the next spot in the buffer
             endpoint_status[endpoint].rx_pos += len; //use len instead of received so we don't overrun
             usb_endpoint_begin_packet_receive(endpoint);
+            usb_debug_log_rx_packet(endpoint, endpoint_status[endpoint].rx_buf,
+                    len, completedLength+len, USB_RX_WORKING);
             return USB_RX_WORKING;
         }
     }
@@ -575,11 +774,13 @@ void usb_endpoint_receive(uint8_t endpoint, void *buf, uint16_t len)
         endpoint_status[endpoint].rx_pos = buf;
         endpoint_status[endpoint].rx_len = len;
         usb_endpoint_begin_packet_receive(endpoint);
+        usb_debug_log_rx_begin(endpoint, buf, len);
     }
     else
     {
         endpoint_status[endpoint].rx_pos = 0;
         usb_set_endpoint_status(endpoint, USB_EP_RX_NAK, USB_EPRX_STAT);
+        usb_debug_log_rx_begin(endpoint, buf, len);
     }
 }
 
@@ -593,6 +794,7 @@ void usb_endpoint_stall(uint8_t endpoint, USBDirection direction)
     {
         usb_set_endpoint_status(endpoint, USB_EP_RX_STALL, USB_EPRX_STAT);
     }
+    usb_debug_log_stall(endpoint, direction);
 }
 
 
@@ -805,6 +1007,7 @@ static void usb_handle_endp0(USBToken token)
 {
     static USBControlState state = USB_ST_SETUP;
 
+    USBControlState start_state = state;
 
     for (uint32_t i = 0; i < USB_CTL_STATE_COUNT; i++)
     {
@@ -817,6 +1020,9 @@ static void usb_handle_endp0(USBToken token)
             }
         }
     }
+
+    usb_debug_log_control(0, start_state, token, state,
+            endpoint_status[0].last_setup);
 }
 
 /**
@@ -859,6 +1065,7 @@ void USB_IRQHandler(void)
     volatile uint16_t stat = USB->ISTR;
     if (stat & USB_ISTR_RESET)
     {
+        usb_debug_log_reset();
         usb_reset();
         hook_usb_reset();
         USB->ISTR = ~USB_ISTR_RESET;
@@ -894,10 +1101,12 @@ void USB_IRQHandler(void)
         uint8_t endpoint = stat & USB_ISTR_EP_ID;
         uint16_t val = USB_ENDPOINT_REGISTER(endpoint);
 
+        usb_debug_log_istr(endpoint);
+
         if (val & USB_EP_CTR_RX)
         {
             USBRXStatus result = usb_endpoint_end_packet_receive(endpoint);
-            USB_ENDPOINT_REGISTER(endpoint) = val & USB_EPREG_MASK & ~USB_EP_CTR_RX;
+            USB_ENDPOINT_REGISTER(endpoint) &= USB_EPREG_MASK & ~USB_EP_CTR_RX;
             if (result & USB_RX_SETUP)
             {
                 if (endpoint)
@@ -910,7 +1119,7 @@ void USB_IRQHandler(void)
                     usb_handle_endp0(USB_TOK_SETUP);
                 }
             }
-            if (result & USB_RX_DONE)
+            else if (result & USB_RX_DONE)
             {
                 if (endpoint)
                 {
@@ -927,7 +1136,7 @@ void USB_IRQHandler(void)
         if (val & USB_EP_CTR_TX)
         {
             usb_endpoint_send_next_packet(endpoint);
-            USB_ENDPOINT_REGISTER(endpoint) = val & USB_EPREG_MASK & ~USB_EP_CTR_TX;
+            USB_ENDPOINT_REGISTER(endpoint) &= USB_EPREG_MASK & ~USB_EP_CTR_TX;
             if (!endpoint_status[endpoint].tx_pos)
             {
                 if (endpoint)
