@@ -153,14 +153,18 @@ typedef struct {
 
 #ifdef USB_DEBUG
 
-typedef enum { USB_LOG_RESET, USB_LOG_STALL, USB_LOG_TX, USB_LOG_RX_START,
-    USB_LOG_RX_PACKET, USB_LOG_CTL } USBLogEntryType;
+typedef enum { USB_LOG_RESET, USB_LOG_ISTR, USB_LOG_STALL, USB_LOG_TX,
+    USB_LOG_TX_DONE, USB_LOG_RX_START, USB_LOG_RX_PACKET, USB_LOG_CTL }
+    USBLogEntryType;
 
 typedef struct {
     uint32_t index;
     uint8_t endpoint;
     USBLogEntryType type;
     union {
+        struct {
+            uint16_t endpr;
+        } istr;
         struct {
             USBDirection direction;
             uint16_t endpr;
@@ -171,6 +175,10 @@ typedef struct {
             uint16_t remaining;
             uint16_t endpr;
         } transmit;
+        struct {
+            void * addr;
+            uint16_t endpr;
+        } transmit_done;
         struct {
             void * addr;
             uint16_t size;
@@ -192,14 +200,24 @@ typedef struct {
     };
 } __attribute__ (( packed )) USBLogEntry;
 
+// Size of the debug log (note that each entry is huge)
 #define USB_DEBUG_LOG_SIZE 128
+// If this is defined, the beginning of the log is preserved
+#define USB_DEBUG_LOG_PRESERVE
 uint32_t usb_debug_log_counter = 0;
 USBLogEntry usb_debug_log[USB_DEBUG_LOG_SIZE];
 
 static inline void usb_debug_log_commit(USBLogEntry entry)
 {
-    uint32_t index = usb_debug_log_counter++ % USB_DEBUG_LOG_SIZE;
-    usb_debug_log[index] = entry;
+#ifdef USB_DEBUG_LOG_PRESERVE
+    if (usb_debug_log_counter < USB_DEBUG_LOG_SIZE)
+    {
+#endif // USB_DEBUG_LOG_PRESERVE
+        uint32_t index = usb_debug_log_counter++ % USB_DEBUG_LOG_SIZE;
+        usb_debug_log[index] = entry;
+#ifdef USB_DEBUG_LOG_PRESERVE
+    }
+#endif // USB_DEBUG_LOG_PRESERVE
 }
 
 static void usb_debug_log_reset(void)
@@ -208,6 +226,19 @@ static void usb_debug_log_reset(void)
         .index = usb_debug_log_counter,
         .endpoint = 0,
         .type = USB_LOG_RESET,
+    };
+    usb_debug_log_commit(entry);
+}
+
+static void usb_debug_log_istr(uint8_t endpoint)
+{
+    USBLogEntry entry = {
+        .index = usb_debug_log_counter,
+        .endpoint = endpoint,
+        .type = USB_LOG_ISTR,
+        .istr = {
+            .endpr = USB_ENDPOINT_REGISTER(endpoint),
+        },
     };
     usb_debug_log_commit(entry);
 }
@@ -237,6 +268,19 @@ static void usb_debug_log_tx(uint8_t endpoint, void *addr, uint8_t len, uint16_t
             .len = len,
             .remaining = remaining,
             .endpr = USB_ENDPOINT_REGISTER(endpoint),
+        },
+    };
+    usb_debug_log_commit(entry);
+}
+
+static void usb_debug_log_tx_done(uint8_t endpoint, void *addr)
+{
+    USBLogEntry entry = {
+        .index = usb_debug_log_counter,
+        .endpoint = endpoint,
+        .type = USB_LOG_TX_DONE,
+        .transmit_done = {
+            .addr = addr,
         },
     };
     usb_debug_log_commit(entry);
@@ -298,11 +342,19 @@ static void usb_debug_log_reset(void)
 {
 }
 
+static void usb_debug_log_istr(uint8_t endpoint)
+{
+}
+
 static void usb_debug_log_stall(uint8_t endpoint, USBDirection direction)
 {
 }
 
 static void usb_debug_log_tx(uint8_t endpoint, void *addr, uint8_t len, uint16_t remaining)
+{
+}
+
+static void usb_debug_log_tx_done(uint8_t endpoint, void *addr)
 {
 }
 
@@ -492,7 +544,10 @@ static void usb_endpoint_send_next_packet(uint8_t endpoint)
 
     //is transmission finished (or never started)?
     if (!endpoint_status[endpoint].tx_pos || !packetSize)
+    {
+        usb_debug_log_tx_done(endpoint, endpoint_status[endpoint].tx_buf);
         return;
+    }
 
     //if we get this far, we have something to transmit, even if its nothing
 
@@ -1045,6 +1100,8 @@ void USB_IRQHandler(void)
     {
         uint8_t endpoint = stat & USB_ISTR_EP_ID;
         uint16_t val = USB_ENDPOINT_REGISTER(endpoint);
+
+        usb_debug_log_istr(endpoint);
 
         if (val & USB_EP_CTR_RX)
         {
