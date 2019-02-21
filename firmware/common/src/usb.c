@@ -1106,7 +1106,7 @@ void USB_IRQHandler(void)
         if (val & USB_EP_CTR_RX)
         {
             USBRXStatus result = usb_endpoint_end_packet_receive(endpoint);
-            USB_ENDPOINT_REGISTER(endpoint) = val & USB_EPREG_MASK & ~USB_EP_CTR_RX;
+            USB_ENDPOINT_REGISTER(endpoint) &= USB_EPREG_MASK & ~USB_EP_CTR_RX;
             if (result & USB_RX_SETUP)
             {
                 if (endpoint)
@@ -1119,7 +1119,7 @@ void USB_IRQHandler(void)
                     usb_handle_endp0(USB_TOK_SETUP);
                 }
             }
-            if (result & USB_RX_DONE)
+            else if (result & USB_RX_DONE)
             {
                 if (endpoint)
                 {
@@ -1136,7 +1136,7 @@ void USB_IRQHandler(void)
         if (val & USB_EP_CTR_TX)
         {
             usb_endpoint_send_next_packet(endpoint);
-            USB_ENDPOINT_REGISTER(endpoint) = val & USB_EPREG_MASK & ~USB_EP_CTR_TX;
+            USB_ENDPOINT_REGISTER(endpoint) &= USB_EPREG_MASK & ~USB_EP_CTR_TX;
             if (!endpoint_status[endpoint].tx_pos)
             {
                 if (endpoint)
