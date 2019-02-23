@@ -61,6 +61,7 @@ def main():
             epilog=textwrap.dedent(__doc__))
     subparsers = parser.add_subparsers(help='Command type to execute', dest='command')
     subparsers.required = True
+    status = subparsers.add_parser('status', help='Gets the device status')
     getter = subparsers.add_parser('get', help='Gets a parameter value')
     getter.add_argument('param', type=str, help='Parameter name to get')
     setter = subparsers.add_parser('set', help='Sets a parameter value')
@@ -84,6 +85,9 @@ def main():
             if res is None:
                 raise NoResponseError
             print("Command: {}, Result: {}".format(res.command, res.status))
+        elif args.command == 'status':
+            res = dev.status()
+            print (res.bytes)
         else:
             raise NotImplementedError
 
