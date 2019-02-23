@@ -1,9 +1,11 @@
 //! GUI layer
 //!
 
+use std::sync::mpsc::{Sender, Receiver};
 use std::time::Instant;
 use imgui::*;
 use device::*;
+use config;
 
 const CLEAR_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 
@@ -70,7 +72,10 @@ impl GuiState {
     }
 }
 
-pub fn gui_main() {
+pub type ConfigRequest = config::Request<Device<MidiFader>>;
+pub type ConfigResponse = config::Response<Device<MidiFader>>;
+
+pub fn gui_main(configure_out: Sender<ConfigRequest>, configure_in: Receiver<ConfigResponse>) {
     use glium::glutin;
     use glium::{Display, Surface};
     use imgui_glium_renderer::Renderer;

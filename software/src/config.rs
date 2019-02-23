@@ -2,6 +2,7 @@
 
 use std::marker::PhantomData;
 use tokio::prelude::*;
+use tokio::sync::mpsc::*;
 use device::{AsyncHidDevice, MidiFader, MidiFaderExtensions, ParameterValue, GetParameter, Error};
 
 macro_rules! parameter_type {
@@ -424,5 +425,18 @@ impl<T: AsyncHidDevice<MidiFader>> DeviceConfig<T> {
                     groups.3, groups.4, groups.5, groups.6, res.1] })
             })
     }
+}
+
+/// Configuration request
+pub enum Request<T: AsyncHidDevice<MidiFader>> {
+    ReadConfiguration(T),
+}
+
+pub enum Response<T: AsyncHidDevice<MidiFader>> {
+    Configured(DeviceConfig<T>)
+}
+
+pub fn configure<T: AsyncHidDevice<MidiFader>>(requests: Receiver<Request<T>>, responses:
+                                               Sender<Response<T>>) {
 }
 

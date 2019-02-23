@@ -23,6 +23,7 @@ mod device;
 mod config;
 mod gui;
 
+use std::sync::mpsc::channel;
 use tokio::prelude::*;
 use device::{Device, MidiFaderExtensions};
 
@@ -44,5 +45,8 @@ fn main() {
         });
 
     tokio::run(cmd);*/
-    gui::gui_main();
+
+    let (tx, _) = channel();
+    let (_, rx) = channel();
+    gui::gui_main(tx, rx);
 }
