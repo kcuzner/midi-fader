@@ -2,8 +2,30 @@
 
 use std::marker::PhantomData;
 use tokio::prelude::*;
-use tokio::sync::mpsc::*;
-use device::{AsyncHidDevice, MidiFader, MidiFaderExtensions, ParameterValue, GetParameter, Error};
+use tokio::sync::mpsc;
+use device;
+use device::{AsyncHidDevice, MidiFader, MidiFaderExtensions, ParameterValue, GetParameter};
+
+error_chain! {
+    foreign_links {
+        MpscSend(mpsc::error::SendError);
+    }
+    links {
+        DeviceError(device::Error, device::ErrorKind);
+    }
+    errors {
+        ReceiveError {
+            description("Channel receiver error occurred."),
+            display("Channel receiver error occurred.")
+        }
+    }
+}
+
+impl From<mpsc::error::RecvError> for Error {
+    fn from(item: mpsc::error::RecvError) -> Self {
+        Self::from_kind(ErrorKind::ReceiveError)
+    }
+}
 
 macro_rules! parameter_type {
     ($name:ident, $mask:expr, $arg:ident) => {
@@ -291,6 +313,7 @@ impl Button {
                 };
                 Ok((res.0, button))
             })
+            .map_err(|e| e.into())
     }
 }
 
@@ -356,6 +379,7 @@ impl Fader {
                 };
                 Ok((res.0, fader))
             })
+            .map_err(|e| e.into())
     }
 }
 
@@ -429,14 +453,53 @@ impl<T: AsyncHidDevice<MidiFader>> DeviceConfig<T> {
 
 /// Configuration request
 pub enum Request<T: AsyncHidDevice<MidiFader>> {
-    ReadConfiguration(T),
+    ReadConfiguration(T, mpsc::Sender<Response<T>>),
+    WriteConfiguration(DeviceConfig<T>, mpsc::Sender<Response<T>>),
 }
 
+/// Configuration response
 pub enum Response<T: AsyncHidDevice<MidiFader>> {
-    Configured(DeviceConfig<T>)
+    Easy,
+    Configured(DeviceConfig<T>),
+    Error(Error),
 }
 
-pub fn configure<T: AsyncHidDevice<MidiFader>>(requests: Receiver<Request<T>>, responses:
-                                               Sender<Response<T>>) {
+/// Captured value that will appear in both Ok and Err results of a future
+struct Capture<T> {
+    item: T
+}
+
+/// Handles configuration requests
+pub fn configure<T: AsyncHidDevice<MidiFader>>(
+    requests: mpsc::Receiver<Request<T>>) -> impl Future<Item=(), Error=Error> {
+
+    requests.map_err(|e| e.into())
+        .for_each(|r: Request<T>| {
+            // Process a request
+            //
+            // Each request will have the following logic
+            //   1. Process the request, possibly through a future
+            //   2. Any errors at this point will be send through the response queue
+            //   3. Any errors after the point of sending through the queue will result in this
+            //      stream finishing.
+            match r {
+                Request::ReadConfiguration(dev, responses) => {
+                    future::Either::A(DeviceConfig::new(dev).join(Ok(responses.clone()))
+                        .then(|res| {
+                            match res {
+                                Ok((cfg, responses)) => responses.send(Response::Configured(cfg)),
+                                Err(e) => responses.send(Response::Error(e)),
+                            }
+                        })
+                        .and_then(|_| Ok(()))
+                        .map_err(|e| e.into()))
+                    },
+                Request::WriteConfiguration(c, responses) =>
+                    //TODO: Implement writing back the configuration
+                    future::Either::B(responses.send(Response::Configured(c))
+                                      .and_then(|_| Ok(()))
+                                      .map_err(|e| e.into())),
+            }
+        })
 }
 

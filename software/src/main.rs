@@ -23,7 +23,7 @@ mod device;
 mod config;
 mod gui;
 
-use std::sync::mpsc::channel;
+use std::thread;
 use tokio::prelude::*;
 use device::{Device, MidiFaderExtensions};
 
@@ -46,7 +46,13 @@ fn main() {
 
     tokio::run(cmd);*/
 
-    let (tx, _) = channel();
-    let (_, rx) = channel();
-    gui::gui_main(tx, rx);
+    let (requests_tx, requests_rx) = tokio::sync::mpsc::channel(10usize);
+
+    let handle = thread::spawn(move || {
+        let configurator = config::configure(requests_rx)
+            .map_err(|e| panic!("Configuration failed. {}", e));
+        tokio::run(configurator);
+    });
+
+    gui::gui_main(requests_tx);
 }

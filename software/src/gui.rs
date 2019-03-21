@@ -1,7 +1,7 @@
 //! GUI layer
 //!
 
-use std::sync::mpsc::{Sender, Receiver};
+use tokio::sync::mpsc::{channel, Sender, Receiver};
 use std::time::Instant;
 use imgui::*;
 use device::*;
@@ -75,7 +75,7 @@ impl GuiState {
 pub type ConfigRequest = config::Request<Device<MidiFader>>;
 pub type ConfigResponse = config::Response<Device<MidiFader>>;
 
-pub fn gui_main(configure_out: Sender<ConfigRequest>, configure_in: Receiver<ConfigResponse>) {
+pub fn gui_main(configure_out: Sender<ConfigRequest>) {
     use glium::glutin;
     use glium::{Display, Surface};
     use imgui_glium_renderer::Renderer;
