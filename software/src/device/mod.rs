@@ -20,6 +20,12 @@ mod unix;
 #[cfg(target_os="linux")]
 use self::unix as os;
 
+#[cfg(target_os="windows")]
+mod windows;
+
+#[cfg(target_os="windows")]
+use self::windows as os;
+
 error_chain! {
     foreign_links {
         Io(io::Error);

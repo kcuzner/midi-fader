@@ -16,6 +16,9 @@ extern crate tokio;
 #[cfg(target_os="linux")]
 extern crate udev;
 
+#[cfg(target_os="windows")]
+extern crate winapi;
+
 mod device;
 mod config;
 mod gui;
