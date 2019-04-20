@@ -9,6 +9,25 @@ use config;
 
 const CLEAR_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 
+pub type ConfigRequest = config::Request<Device<MidiFader>>;
+pub type ConfigResponse = config::Response<Device<MidiFader>>;
+
+fn textbox<'a>(ui: &Ui<'a>, title: &'a ImStr, text: &'a ImStr) {
+    let framesize = ui.frame_size().logical_size;
+    ui.window(title)
+        .size((framesize.0 as f32, framesize.1 as f32), ImGuiCond::FirstUseEver)
+        .position((0f32, 0f32), ImGuiCond::FirstUseEver)
+        .title_bar(false)
+        .resizable(false)
+        .movable(false)
+        .build(|| {
+            let text_size = ui.calc_text_size(text, false, 0f32);
+            let text_pos = ((framesize.0 as f32 - text_size.x) / 2f32, (framesize.1 as f32 - text_size.y) / 2f32);
+            ui.set_cursor_pos(text_pos);
+            ui.text(text);
+        });
+}
+
 struct FindingDevice {
     _0: (),
 }
@@ -18,21 +37,8 @@ impl FindingDevice {
         FindingDevice { _0: () }
     }
 
-    fn render<'a>(self, ui: &Ui<'a>) -> (GuiState, bool) {
-        let framesize = ui.frame_size().logical_size;
-        ui.window(im_str!("Finding Device"))
-            .size((framesize.0 as f32, framesize.1 as f32), ImGuiCond::FirstUseEver)
-            .position((0f32, 0f32), ImGuiCond::FirstUseEver)
-            .title_bar(false)
-            .resizable(false)
-            .movable(false)
-            .build(|| {
-                let text = im_str!("Finding Device...");
-                let text_size = ui.calc_text_size(text, false, 0f32);
-                let text_pos = ((framesize.0 as f32 - text_size.x) / 2f32, (framesize.1 as f32 - text_size.y) / 2f32);
-                ui.set_cursor_pos(text_pos);
-                ui.text(text);
-            });
+    fn render<'a>(self, ui: &Ui<'a>, configure_out: &Sender<ConfigRequest>) -> (GuiState, bool) {
+        textbox(ui, im_str!("Finding Device"), im_str!("Finding Device..."));
         match Device::<MidiFader>::enumerate().unwrap().take(1).next() {
             Some(dev) => (GuiState::Configuring(Configuring::new(dev.unwrap())), false),
             None => (GuiState::FindingDevice(self), false),
@@ -49,14 +55,30 @@ impl Configuring {
         Configuring { dev: Some(device) }
     }
 
-    fn render<'a>(self, ui: &Ui<'a>) -> (GuiState, bool) {
+    fn render<'a>(self, ui: &Ui<'a>, configure_out: &Sender<ConfigRequest>) -> (GuiState, bool) {
         (GuiState::Configuring(self), false)
+    }
+}
+
+struct WaitingForResponse {
+    receiver: Receiver<ConfigResponse>,
+}
+
+impl WaitingForResponse {
+    fn new(receiver: Receiver<ConfigResponse>) -> Self {
+        WaitingForResponse { receiver: receiver }
+    }
+
+    fn render<'a>(self, ui: &Ui<'a>, configure_out: &Sender<ConfigRequest>) -> (GuiState, bool) {
+        textbox(ui, im_str!("Waiting"), im_str!("Waiting for Device..."));
+        (GuiState::WaitingForResponse(self), false)
     }
 }
 
 enum GuiState {
     FindingDevice(FindingDevice),
     Configuring(Configuring),
+    WaitingForResponse(WaitingForResponse),
 }
 
 impl GuiState {
@@ -64,16 +86,13 @@ impl GuiState {
         GuiState::FindingDevice(FindingDevice::new())
     }
 
-    fn render<'a>(self, ui: &Ui<'a>) -> (GuiState, bool) {
+    fn render<'a>(self, ui: &Ui<'a>, configure_out: &Sender<ConfigRequest>) -> (GuiState, bool) {
         match self {
-            GuiState::FindingDevice(d) => d.render(ui),
+            GuiState::FindingDevice(d) => d.render(ui, configure_out),
             _ => (self, false),
         }
     }
 }
-
-pub type ConfigRequest = config::Request<Device<MidiFader>>;
-pub type ConfigResponse = config::Response<Device<MidiFader>>;
 
 pub fn gui_main(configure_out: Sender<ConfigRequest>) {
     use glium::glutin;
@@ -148,7 +167,7 @@ pub fn gui_main(configure_out: Sender<ConfigRequest>) {
         last_frame = now;
 
         let ui = imgui.frame(frame_size, delta_s);
-        let (next_state, inner_quit) = state.render(&ui);
+        let (next_state, inner_quit) = state.render(&ui, &configure_out);
         state = next_state;
         quit |= inner_quit;
 

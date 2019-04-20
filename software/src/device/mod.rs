@@ -542,3 +542,11 @@ impl Identified for Bootloader {
     const PRODUCT: &'static str = "Midi-Fader Bootloader";
 }
 
+#[test]
+fn check_send() {
+    // Strictly speaking this isn't necessary, but it can help eliminate certain types of mistakes
+    // when attempting to decipher excessively large compiler errors.
+    fn is_send<T: Send>() {}
+    is_send::<Device<MidiFader>>();
+}
+

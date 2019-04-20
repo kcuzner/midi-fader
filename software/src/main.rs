@@ -28,24 +28,6 @@ use tokio::prelude::*;
 use device::{Device, MidiFaderExtensions};
 
 fn main() {
-    /*let dev = Device::<device::MidiFader>::enumerate().unwrap().take(1).next().expect("No device found").unwrap();
-    println!("Dev!");
-    let cmd = dev.get_parameter(0x4006).
-        and_then(|r| {
-            let v: i32 = r.1.into();
-            println!("Got {}", v);
-            r.0.device_status()
-        }).
-        and_then(|r| {
-            println!("Firmware version: {}", r.1.version());
-            Ok(())
-        }).
-        map_err(|e| {
-            println!("Oh noes! {:?}", e);
-        });
-
-    tokio::run(cmd);*/
-
     let (requests_tx, requests_rx) = tokio::sync::mpsc::channel(10usize);
 
     let handle = thread::spawn(move || {
@@ -55,4 +37,5 @@ fn main() {
     });
 
     gui::gui_main(requests_tx);
+    handle.join().unwrap();
 }
