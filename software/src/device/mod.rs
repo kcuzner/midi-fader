@@ -26,29 +26,43 @@ mod windows;
 #[cfg(target_os="windows")]
 use self::windows as os;
 
-error_chain! {
-    foreign_links {
-        Io(io::Error);
-        Utf8(std::str::Utf8Error);
-    }
-    links {
-        ImplError(os::Error, os::ErrorKind);
-    }
-    errors {
-        DeviceError(n: i32) {
-            description("Error from the device"),
-            display("Error from the device: {}", n),
-        }
-        ParameterSizeError(s: usize) {
-            description("The parameter was of an invalid size"),
-            display("The parameter was of an invalid size: {}", s),
-        }
-        UnexpectedResponseError {
-            description("Unexpected device response"),
-            display("Unexpected device response"),
-        }
+#[derive(Debug, Fail)]
+pub enum Error {
+    #[fail(display = "Device reported error: {}", _0)]
+    DeviceError(i32),
+    #[fail(display = "The parameter was of an invalid size: {}", size)]
+    ParameterSizeError {
+        size: usize,
+    },
+    #[fail(display = "Unexpected device response")]
+    UnexpectedResponseError,
+    #[fail(display = "IO error: {}", _0)]
+    Io(io::Error),
+    #[fail(display = "UTF8 error: {}", _0)]
+    Utf8(std::str::Utf8Error),
+    #[fail(display = "Device error")]
+    ImplError(#[cause] os::Error),
+}
+
+impl From<io::Error> for Error {
+    fn from(e: io::Error) -> Self {
+        Error::Io(e)
     }
 }
+
+impl From<std::str::Utf8Error> for Error {
+    fn from(e: std::str::Utf8Error) -> Self {
+        Error::Utf8(e)
+    }
+}
+
+impl From<os::Error> for Error {
+    fn from(e: os::Error) -> Self {
+        Error::ImplError(e)
+    }
+}
+
+type Result<T> = std::result::Result<T, Error>;
 
 pub trait Identified {
     const VID: u16;
@@ -97,7 +111,7 @@ impl<T: Identified> AsyncHidDevice<T> for Device<T> {
 
         match self.io.get_ref().read(report) {
             Ok(n) => Ok(n.into()),
-            Err(os::Error(os::ErrorKind::Io(ref e), _)) if e.kind() == io::ErrorKind::WouldBlock => {
+            Err(os::Error::Io(ref e)) if e.kind() == io::ErrorKind::WouldBlock => {
                 self.io.clear_read_ready(mio::Ready::readable())?;
                 Ok(Async::NotReady)
             },
@@ -406,7 +420,7 @@ impl<T: AsyncHidDevice<MidiFader>> Future for Status<T> {
         // The command is completed
         self.command.take().unwrap();
         match result.1.parameter(0).unwrap() as u32 {
-            n if n != MAGIC => return Err(ErrorKind::UnexpectedResponseError.into()),
+            n if n != MAGIC => return Err(Error::UnexpectedResponseError),
             _ => {}
         }
         let status = DeviceStatus::new(result.1.parameter(1).unwrap(), result.1.version().unwrap());
@@ -444,7 +458,7 @@ impl<T: AsyncHidDevice<MidiFader>> Future for GetParameter<T> {
         // The command is completed
         self.command.take().unwrap();
         match result.1.parameter(0).unwrap() as i32 {
-            n if n != 0 => return Err(ErrorKind::DeviceError(n).into()),
+            n if n != 0 => return Err(Error::DeviceError(n)),
             _ => {},
         }
         let raw = result.1.parameter(2).unwrap();
@@ -457,7 +471,7 @@ impl<T: AsyncHidDevice<MidiFader>> Future for GetParameter<T> {
                 LittleEndian::read_i16(&buf[..]) as i32
             },
             4 => raw as i32,
-            v => return Err(ErrorKind::ParameterSizeError(v).into()),
+            v => return Err(Error::ParameterSizeError { size: v }),
         };
         Ok(Async::Ready((result.0, ParameterValue::new(value, size))))
     }
@@ -498,7 +512,7 @@ impl<T: AsyncHidDevice<MidiFader>> Future for SetParameter<T> {
         // The command is completed
         self.command.take().unwrap();
         match result.1.parameter(0).unwrap() as i32 {
-            n if n != 0 => return Err(ErrorKind::DeviceError(n).into()),
+            n if n != 0 => return Err(Error::DeviceError(n)),
             _ => {},
         }
         Ok(Async::Ready(result.0))

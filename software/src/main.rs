@@ -1,9 +1,9 @@
 //! Host software GUI for the midi-fader
 
 extern crate byteorder;
-#[macro_use]
-extern crate error_chain;
 extern crate errno;
+#[macro_use]
+extern crate failure;
 #[macro_use]
 extern crate futures;
 extern crate glium;

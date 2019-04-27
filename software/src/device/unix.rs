@@ -16,20 +16,31 @@ use std::marker::PhantomData;
 use std::{ffi, fmt, path, io};
 use std::os::unix;
 
+#[derive(Debug, Fail)]
+pub enum Error {
+    #[fail(display = "Udev error: {}", _0)]
+    Udev(::udev::Error),
+    #[fail(display = "IO error: {}", _0)]
+    Io(io::Error),
+    #[fail(display = "No device node: {}", syspath)]
+    NoDeviceNode {
+        syspath: String,
+    },
+}
 
-
-error_chain! {
-    foreign_links {
-        Udev(::udev::Error);
-        Io(io::Error);
-    }
-    errors {
-        NoDeviceNode(syspath: String) {
-            description("No device node for device"),
-            display("No device node for '{}'", syspath),
-        }
+impl From<io::Error> for Error {
+    fn from(e: io::Error) -> Self {
+        Error::Io(e)
     }
 }
+
+impl From<::udev::Error> for Error {
+    fn from(e: ::udev::Error) -> Self {
+        Error::Udev(e)
+    }
+}
+
+type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum BusType {
@@ -209,7 +220,9 @@ impl<T: Identified> OpenUdev<T> {
 impl<T: Identified> Open<T> for OpenUdev<T> {
     fn open(&self) -> device::Result<Device<T>> {
         let node = self.dev.devnode()
-            .map_or_else(|| Err(Error::from_kind(ErrorKind::NoDeviceNode(self.dev.syspath().to_str().unwrap().to_owned()))), |n| Ok(n))?;
+            .map_or_else(|| Err(Error::NoDeviceNode {
+                syspath: self.dev.syspath().to_str().unwrap().to_owned()
+            }), |n| Ok(n))?;
         let hid_device = HidDevice::new(node)?;
         Ok(Device::new(hid_device))
     }

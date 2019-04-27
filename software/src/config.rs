@@ -7,31 +7,31 @@ use std::sync::mpsc as std_mpsc;
 use device;
 use device::{AsyncHidDevice, MidiFader, MidiFaderExtensions, ParameterValue, GetParameter};
 
-error_chain! {
-    links {
-        DeviceError(device::Error, device::ErrorKind);
-    }
-    errors {
-        ReceiveError {
-            description("Channel receiver error occurred."),
-            display("Channel receiver error occurred.")
-        }
-        SendError {
-            description("Channel sender error occurred."),
-            display("Channel sender error occurred"),
-        }
+#[derive(Debug, Fail)]
+pub enum Error {
+    #[fail(display = "Device error: {}", _0)]
+    DeviceError(#[cause] device::Error),
+    #[fail(display = "Channel receiver error")]
+    RecvError,
+    #[fail(display = "Channel sender error")]
+    SendError,
+}
+
+impl From<device::Error> for Error {
+    fn from(e: device::Error) -> Self {
+        Error::DeviceError(e)
     }
 }
 
 impl From<tokio_mpsc::error::RecvError> for Error {
-    fn from(item: tokio_mpsc::error::RecvError) -> Self {
-        Self::from_kind(ErrorKind::ReceiveError)
+    fn from(_: tokio_mpsc::error::RecvError) -> Self {
+        Error::RecvError
     }
 }
 
 impl<T> From<std_mpsc::SendError<T>> for Error {
-    fn from(item: std_mpsc::SendError<T>) -> Self {
-        Self::from_kind(ErrorKind::SendError)
+    fn from(_: std_mpsc::SendError<T>) -> Self {
+        Error::SendError
     }
 }
 

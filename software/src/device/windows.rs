@@ -15,11 +15,18 @@ use std::marker::PhantomData;
 use std::{io, ptr, mem};
 use alloc::alloc;
 
-error_chain! {
-    foreign_links {
-        Io(io::Error);
+pub enum Error {
+    #[fail(display = "IO error: {}", _0)]
+    Io(io::Error),
+}
+
+impl From<io::Error> for Error {
+    fn from(e: io::Error) ->Self {
+        Error::Io(e)
     }
 }
+
+type Result<T> = std::result::Result<T, Error>;
 
 struct DeviceInterfaceDetailData {
     layout: alloc::Layout,
