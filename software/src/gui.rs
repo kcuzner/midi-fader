@@ -1,7 +1,12 @@
 //! GUI layer
 //!
+//! This interacts with the configuration layer by means of a Tokio MPSC. The GUI is meant to run
+//! on its own dedicated thread so that it is always responsive. It owns the device while it is
+//! being configured and the passes it over to the tokio layer when the device needs to be read or
+//! written, since those operations use nonblocking I/O.
 
-use tokio::sync::mpsc::{channel, Sender, Receiver};
+use tokio::sync::mpsc as tokio_mpsc;
+use std::sync::mpsc as std_mpsc;
 use std::time::Instant;
 use imgui::*;
 use device::*;
@@ -12,6 +17,7 @@ const CLEAR_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 pub type ConfigRequest = config::Request<Device<MidiFader>>;
 pub type ConfigResponse = config::Response<Device<MidiFader>>;
 
+/// Renders a full-window textbox
 fn textbox<'a>(ui: &Ui<'a>, title: &'a ImStr, text: &'a ImStr) {
     let framesize = ui.frame_size().logical_size;
     ui.window(title)
@@ -28,6 +34,9 @@ fn textbox<'a>(ui: &Ui<'a>, title: &'a ImStr, text: &'a ImStr) {
         });
 }
 
+/// Gui state for when the device is being enumerated.
+///
+/// This will repeatedly enumerate midi fader devices until one is found
 struct FindingDevice {
     _0: (),
 }
@@ -37,44 +46,83 @@ impl FindingDevice {
         FindingDevice { _0: () }
     }
 
-    fn render<'a>(self, ui: &Ui<'a>, configure_out: &Sender<ConfigRequest>) -> (GuiState, bool) {
+    fn render<'a>(self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>) -> (GuiState, bool) {
         textbox(ui, im_str!("Finding Device"), im_str!("Finding Device..."));
         match Device::<MidiFader>::enumerate().unwrap().take(1).next() {
-            Some(dev) => (GuiState::Configuring(Configuring::new(dev.unwrap())), false),
+            Some(dev) => {
+                let (tx, rx) = std_mpsc::channel();
+                configure_out
+                    .try_send(config::Request::ReadConfiguration(dev.unwrap(), tx));
+                (GuiState::WaitingForResponse(WaitingForResponse::new(rx)), false)
+            },
             None => (GuiState::FindingDevice(self), false),
         }
     }
 }
 
+/// Primary GUI state for when the device is being configured
+///
+/// This will display configuration controls whose state is cached until the user clicks a save
+/// button. At that point, this state will be exited and the WaitingForResponse state will be
+/// entered.
 struct Configuring {
-    dev: Option<Device<MidiFader>>,
+    dev: config::DeviceConfig<Device<MidiFader>>
 }
 
 impl Configuring {
-    fn new(device: Device<MidiFader>) -> Self {
-        Configuring { dev: Some(device) }
+    fn new(device: config::DeviceConfig<Device<MidiFader>>) -> Self {
+        Configuring { dev: device }
     }
 
-    fn render<'a>(self, ui: &Ui<'a>, configure_out: &Sender<ConfigRequest>) -> (GuiState, bool) {
+    fn render<'a>(self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>) -> (GuiState, bool) {
         (GuiState::Configuring(self), false)
     }
 }
 
+/// Generic state for when the device is being configured in some way.
+///
+/// Whenever a configuration request is performed, the device itself is passed to the configuration
+/// thread(s) which are tokio-based for async io. Once the configurator has finished doing its
+/// thing, it will send the device back as a configuration response through the mpsc sender that
+/// was passed with the configuration request. This gui state waits for something to appear on that
+/// queue before moving back to the configuring GUI state.
 struct WaitingForResponse {
-    receiver: Receiver<ConfigResponse>,
+    receiver: std_mpsc::Receiver<ConfigResponse>,
 }
 
 impl WaitingForResponse {
-    fn new(receiver: Receiver<ConfigResponse>) -> Self {
+    fn new(receiver: std_mpsc::Receiver<ConfigResponse>) -> Self {
         WaitingForResponse { receiver: receiver }
     }
 
-    fn render<'a>(self, ui: &Ui<'a>, configure_out: &Sender<ConfigRequest>) -> (GuiState, bool) {
+    fn render<'a>(self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>) -> (GuiState, bool) {
         textbox(ui, im_str!("Waiting"), im_str!("Waiting for Device..."));
-        (GuiState::WaitingForResponse(self), false)
+        match self.receiver.try_recv() {
+            Ok(r) => {
+                match r {
+                    config::Response::Configured(d) => (GuiState::Configuring(Configuring::new(d)), false),
+                    config::Response::Error(e) => unimplemented!(),
+                    config::Response::Easy => unimplemented!(),
+                }
+            },
+            Err(std_mpsc::TryRecvError::Empty) => (GuiState::WaitingForResponse(self), false),
+            Err(std_mpsc::TryRecvError::Disconnected) => {
+                // We have crashed
+                unimplemented!()
+            }
+        }
     }
 }
 
+/// Captures all possible states for the GUI
+///
+/// The GUI operates as a state machine which controls the immediate-mode GUI (which pretends it is
+/// stateless, even though it isn't...because it's a gui. Nonetheless, it's a very convenient
+/// interface). This enumeration captures the possible states and delegates a single `render`
+/// method out to the individual render methods of each state.
+///
+/// The main purpose of this state machine is to implement the modalness of the GUI so I can do
+/// things like stop user input while finding, reading, or writing to the Midi-Fader device.
 enum GuiState {
     FindingDevice(FindingDevice),
     Configuring(Configuring),
@@ -86,15 +134,21 @@ impl GuiState {
         GuiState::FindingDevice(FindingDevice::new())
     }
 
-    fn render<'a>(self, ui: &Ui<'a>, configure_out: &Sender<ConfigRequest>) -> (GuiState, bool) {
+    fn render<'a>(self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>) -> (GuiState, bool) {
         match self {
-            GuiState::FindingDevice(d) => d.render(ui, configure_out),
+            GuiState::FindingDevice(s) => s.render(ui, configure_out),
+            GuiState::Configuring(s) => s.render(ui, configure_out),
+            GuiState::WaitingForResponse(s) => s.render(ui, configure_out),
             _ => (self, false),
         }
     }
 }
 
-pub fn gui_main(configure_out: Sender<ConfigRequest>) {
+/// Runs the GUI
+///
+/// This takes a Tokio MPSC Sender which is used to make configuration requests to the
+/// configuration process (which runs on tokio).
+pub fn gui_main(mut configure_out: tokio_mpsc::Sender<ConfigRequest>) {
     use glium::glutin;
     use glium::{Display, Surface};
     use imgui_glium_renderer::Renderer;
@@ -167,7 +221,7 @@ pub fn gui_main(configure_out: Sender<ConfigRequest>) {
         last_frame = now;
 
         let ui = imgui.frame(frame_size, delta_s);
-        let (next_state, inner_quit) = state.render(&ui, &configure_out);
+        let (next_state, inner_quit) = state.render(&ui, &mut configure_out);
         state = next_state;
         quit |= inner_quit;
 

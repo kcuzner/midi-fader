@@ -37,6 +37,7 @@ impl<T> From<std_mpsc::SendError<T>> for Error {
 
 macro_rules! parameter_type {
     ($name:ident, $mask:expr, $arg:ident) => {
+        /// Generated parameter which encapsulates a parameter identifier and parameter value
         #[derive(Debug, Clone)]
         pub struct $name {
             index: u32,
@@ -44,6 +45,10 @@ macro_rules! parameter_type {
         }
 
         impl $name {
+            /// Creates a new parameter of this type
+            ///
+            /// index: Channel index of this parameter value
+            /// value: Parameter value
             pub fn new(index: u32, value: $arg) -> Self {
                 $name { index: index, value: value }
             }
