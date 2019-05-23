@@ -42,6 +42,7 @@ macro_rules! parameter_type {
         pub struct $name {
             index: u32,
             value: $arg,
+            update: Option<$arg>,
         }
 
         impl $name {
@@ -50,7 +51,7 @@ macro_rules! parameter_type {
             /// index: Channel index of this parameter value
             /// value: Parameter value
             pub fn new(index: u32, value: $arg) -> Self {
-                $name { index: index, value: value }
+                $name { index: index, value: value, update: None }
             }
 
             pub fn index(&self) -> u32 {
@@ -58,7 +59,35 @@ macro_rules! parameter_type {
             }
 
             pub fn value(&self) -> $arg {
+                match self.update {
+                    Some(u) => u,
+                    None => self.value,
+                }
+            }
+
+            pub fn original_value(&self) -> $arg {
                 self.value
+            }
+
+            /// Gets the underlying update value
+            ///
+            /// If there is no update, return sNone. Otherwise it returns Some with the update
+            /// value.
+            pub fn get_update(&self) -> Option<$arg> {
+                self.update
+            }
+
+            /// Clears any pending update
+            pub fn clear(&mut self) {
+                self.update = None
+            }
+
+            /// Commits the pending update as the value of this parameter
+            fn commit(&mut self) {
+                match self.update {
+                    Some(u) => self.value = u,
+                    _ => {}
+                }
             }
 
             pub fn parameter(&self) -> u16 {
@@ -70,6 +99,10 @@ macro_rules! parameter_type {
             }
         }
     };
+}
+
+trait IntoParameterValue : Into<ParameterValue> {
+    const SIZE: usize;
 }
 
 macro_rules! ranged_type {
@@ -85,8 +118,6 @@ macro_rules! ranged_type {
         }
 
         impl $name {
-            const SIZE: usize = 1;
-
             /// Creates a new ranged type from a raw value
             pub fn new(raw: $of) -> Self {
                 match raw {
@@ -103,6 +134,10 @@ macro_rules! ranged_type {
                     $name::Invalid { n } => ParameterValue::new(n as i32, $name::SIZE),
                 }
             }
+        }
+
+        impl IntoParameterValue for $name {
+            const SIZE: usize = $size;
         }
 
         impl From<i32> for $name {
@@ -135,6 +170,10 @@ macro_rules! flexible_enum {
             }
         }
 
+        impl IntoParameterValue for $name {
+            const SIZE: usize = 1;
+        }
+
         impl From<i32> for $name {
             fn from(i: i32) -> $name {
                 match i {
@@ -146,6 +185,33 @@ macro_rules! flexible_enum {
             }
         }
     };
+}
+
+macro_rules! parameter_collection {
+    ($name:ident {
+        $( $param:ident: $t:ty, )+
+    }) => {
+        #[derive(Debug)]
+        pub struct $name {
+            index: u32,
+            $(
+                $param: $t,
+            )+
+        }
+
+        paste::item! {
+            impl $name {
+                $(
+                    pub fn $param(&self) -> &$t {
+                        &self.$param
+                    }
+                    pub fn [<$param _mut>](&mut self) -> &mut $t {
+                        &mut self.$param
+                    }
+                )+
+            }
+        }
+    }
 }
 
 /// Enumeration for the possible midi channels
@@ -255,8 +321,7 @@ impl<T: AsyncHidDevice<MidiFader>, U: Into<ParameterValue>> GetParameterValue<T,
 }
 
 /// Settings for a button on the device
-pub struct Button {
-    index: u32,
+parameter_collection!(Button {
     channel: BtnMidiChannel,
     on: BtnOn,
     off: BtnOff,
@@ -265,7 +330,7 @@ pub struct Button {
     note: BtnNote,
     note_vel: BtnNoteVel,
     style: BtnStyle,
-}
+});
 
 impl Button {
     /// Builds a button configuration using the passed device and index
@@ -331,8 +396,7 @@ impl Button {
 }
 
 /// Settings for a fader on the device
-pub struct Fader {
-    index: u32,
+parameter_collection!(Fader {
     channel: FdrMidiChannel,
     mode: FdrMode,
     control: FdrControl,
@@ -340,7 +404,7 @@ pub struct Fader {
     control_max: FdrControlMax,
     pitch_min: FdrPitchMin,
     pitch_max: FdrPitchMax,
-}
+});
 
 impl Fader {
     /// Builds a fader configuration using the passed device and index

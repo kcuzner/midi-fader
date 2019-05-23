@@ -11,6 +11,8 @@ extern crate imgui;
 extern crate imgui_glium_renderer;
 extern crate libc;
 extern crate mio;
+#[macro_use]
+extern crate paste;
 extern crate tokio;
 
 #[cfg(target_os="linux")]
