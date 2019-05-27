@@ -1,5 +1,6 @@
 //! Host software GUI for the midi-fader
 
+extern crate arrayvec;
 extern crate byteorder;
 extern crate errno;
 #[macro_use]

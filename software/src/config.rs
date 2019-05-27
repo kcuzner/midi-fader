@@ -4,8 +4,17 @@ use std::marker::PhantomData;
 use tokio::prelude::*;
 use tokio::sync::mpsc as tokio_mpsc;
 use std::sync::mpsc as std_mpsc;
+use arrayvec;
 use device;
 use device::{AsyncHidDevice, MidiFader, MidiFaderExtensions, ParameterValue, GetParameter};
+
+// Overall, the code in this module is pretty horrifying. I've tried to reduce the repetitiveness
+// through use of macros, but in some cases it was easier to just type it out. In the case where I
+// have done things like sequentially read out the parameters from the device, the types of the
+// futures get quite lengthy and unwieldy (a syntax error can be mostly typename). Since the new
+// method and commit method of the overall device configuration (and underlying collections)
+// require iterating all of the parameters, this technique is used multiple places. I'm pretty sure
+// it could be turned into a macro someday.
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -208,7 +217,34 @@ macro_rules! parameter_collection {
                     pub fn [<$param _mut>](&mut self) -> &mut $t {
                         &mut self.$param
                     }
+
+                    fn [<commit_ $param>]<T: AsyncHidDevice<MidiFader>>(self, device: T) -> impl Future<Item=(T, Self), Error=Error> {
+                        match self.$param.get_update() {
+                            Some(u) => {
+                                future::Either::A(
+                                    device.set_parameter(self.$param.parameter(), u.into())
+                                        .join(Ok(self))
+                                        .map_err(|e| e.into())
+                                        .and_then(|(device, s)| {
+                                            //s.$param.commit();
+                                            Ok((device, s))
+                                        }))
+                            },
+                            None => {
+                                future::Either::B(future::result(Ok((device, self))))
+                            }
+                        }
+                    }
                 )+
+
+                fn commit<T: AsyncHidDevice<MidiFader>>(self, device: T) -> impl Future<Item=(T, Self), Error=Error> {
+                    future::result(Ok((device, self)))
+                        $(
+                            .and_then(|(device, s)| {
+                                s.[<commit_ $param>](device)
+                            })
+                        )+
+                }
             }
         }
     }
@@ -482,6 +518,25 @@ impl GroupConfig {
                 Ok((res.0, group))
             })
     }
+
+    fn commit<T: AsyncHidDevice<MidiFader>>(self, device: T) -> impl Future<Item=(T, Self), Error=Error> {
+        let index = self.index;
+        let fader = self.fader;
+        let button = self.button;
+        fader.commit(device)
+            .and_then(move |(device, fader)| {
+                button.commit(device)
+                    .join(Ok(fader))
+            })
+            .and_then(move |(res, fader)| {
+                let group = GroupConfig {
+                    index: index,
+                    button: res.1,
+                    fader: fader
+                };
+                Ok((res.0, group))
+            })
+    }
 }
 
 pub struct DeviceConfig<T: AsyncHidDevice<MidiFader>> {
@@ -524,6 +579,51 @@ impl<T: AsyncHidDevice<MidiFader>> DeviceConfig<T> {
             .and_then(|(res, groups)| {
                 Ok(DeviceConfig { device: res.0, groups: [groups.0, groups.1, groups.2,
                     groups.3, groups.4, groups.5, groups.6, res.1] })
+            })
+    }
+
+    pub fn commit(self) -> impl Future<Item=Self, Error=Error> {
+        let mut groups = arrayvec::ArrayVec::from(self.groups);
+        let group7 = groups.pop().unwrap();
+        let group6 = groups.pop().unwrap();
+        let group5 = groups.pop().unwrap();
+        let group4 = groups.pop().unwrap();
+        let group3 = groups.pop().unwrap();
+        let group2 = groups.pop().unwrap();
+        let group1 = groups.pop().unwrap();
+        let group0 = groups.pop().unwrap();
+        group0.commit(self.device)
+            .and_then(|(device, group)| {
+                group1.commit(device)
+                    .join(Ok(group))
+            })
+            .and_then(|(res, group0)| {
+                group2.commit(res.0)
+                    .join(Ok((group0, res.1)))
+            })
+            .and_then(|(res, groups)| {
+                group3.commit(res.0)
+                    .join(Ok((groups.0, groups.1, res.1)))
+            })
+            .and_then(|(res, groups)| {
+                group4.commit(res.0)
+                    .join(Ok((groups.0, groups.1, groups.2, res.1)))
+            })
+            .and_then(|(res, groups)| {
+                group5.commit(res.0)
+                    .join(Ok((groups.0, groups.1, groups.2, groups.3, res.1)))
+            })
+            .and_then(|(res, groups)| {
+                group6.commit(res.0)
+                    .join(Ok((groups.0, groups.1, groups.2, groups.3, groups.4, res.1)))
+            })
+            .and_then(|(res, groups)| {
+                group7.commit(res.0)
+                    .join(Ok((groups.0, groups.1, groups.2, groups.3, groups.4, groups.5, res.1)))
+            })
+            .and_then(|(res, groups)| {
+                Ok(DeviceConfig { device: res.0, groups: [groups.0, groups.1, groups.2, groups.3,
+                    groups.4, groups.5, groups.6, res.1] })
             })
     }
 }
@@ -571,9 +671,16 @@ pub fn configure<T: AsyncHidDevice<MidiFader>>(
                         .map_err(|e| e.into()))
                     },
                 Request::WriteConfiguration(c, responses) =>
-                    //TODO: Implement writing back the configuration
-                    future::Either::B(future::result(
-                            responses.send(Response::Configured(c)).map_err(|e| e.into()).into())),
+                    future::Either::B(
+                        c.commit()
+                        .join(Ok(responses.clone()))
+                        .then(move |res| {
+                            future::result(match res {
+                                Ok((cfg, responses)) => responses.send(Response::Configured(cfg)),
+                                Err(e) => responses.send(Response::Error(e)),
+                            })
+                        })
+                        .map_err(|e| e.into()))
             }
         })
 }
