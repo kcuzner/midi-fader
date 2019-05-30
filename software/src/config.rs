@@ -24,6 +24,8 @@ pub enum Error {
     RecvError,
     #[fail(display = "Channel sender error")]
     SendError,
+    #[fail(display = "An error to test stuff")]
+    TestError,
 }
 
 impl From<device::Error> for Error {
@@ -636,7 +638,6 @@ pub enum Request<T: AsyncHidDevice<MidiFader>> {
 
 /// Configuration response
 pub enum Response<T: AsyncHidDevice<MidiFader>> {
-    Easy,
     Configured(DeviceConfig<T>),
     Error(Error),
 }

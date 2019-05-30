@@ -10,6 +10,7 @@ extern crate futures;
 extern crate glium;
 extern crate imgui;
 extern crate imgui_glium_renderer;
+extern crate imgui_winit_support;
 extern crate libc;
 extern crate mio;
 #[macro_use]

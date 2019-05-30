@@ -17,8 +17,8 @@ const CLEAR_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 pub type ConfigRequest = config::Request<Device<MidiFader>>;
 pub type ConfigResponse = config::Response<Device<MidiFader>>;
 
-/// Renders a full-window textbox
-fn textbox<'a>(ui: &Ui<'a>, title: &'a ImStr, text: &'a ImStr) {
+/// Renders a full-window
+fn show_window<'a, F: FnOnce((f64, f64))>(ui: &Ui<'a>, title: &'a ImStr, builder: F) {
     let framesize = ui.frame_size().logical_size;
     ui.window(title)
         .size((framesize.0 as f32, framesize.1 as f32), ImGuiCond::FirstUseEver)
@@ -27,11 +27,18 @@ fn textbox<'a>(ui: &Ui<'a>, title: &'a ImStr, text: &'a ImStr) {
         .resizable(false)
         .movable(false)
         .build(|| {
-            let text_size = ui.calc_text_size(text, false, 0f32);
-            let text_pos = ((framesize.0 as f32 - text_size.x) / 2f32, (framesize.1 as f32 - text_size.y) / 2f32);
-            ui.set_cursor_pos(text_pos);
-            ui.text(text);
-        });
+            builder(framesize)
+        })
+}
+
+/// Renders a full-window textbox
+fn textbox<'a>(ui: &Ui<'a>, title: &'a ImStr, text: &'a ImStr) {
+    show_window(ui, title, |framesize| {
+        let text_size = ui.calc_text_size(text, false, 0f32);
+        let text_pos = ((framesize.0 as f32 - text_size.x) / 2f32, (framesize.1 as f32 - text_size.y) / 2f32);
+        ui.set_cursor_pos(text_pos);
+        ui.text(text);
+    });
 }
 
 /// Gui state for when the device is being enumerated.
@@ -96,13 +103,12 @@ impl WaitingForResponse {
     }
 
     fn render<'a>(self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>) -> (GuiState, bool) {
-        textbox(ui, im_str!("Waiting"), im_str!("Waiting for Device..."));
+        textbox(ui, im_str!("Waiting"), im_str!("Waiting for device..."));
         match self.receiver.try_recv() {
             Ok(r) => {
                 match r {
                     config::Response::Configured(d) => (GuiState::Configuring(Configuring::new(d)), false),
-                    config::Response::Error(e) => unimplemented!(),
-                    config::Response::Easy => unimplemented!(),
+                    config::Response::Error(e) => (GuiState::ShowError(ShowError::new(e)), false),
                 }
             },
             Err(std_mpsc::TryRecvError::Empty) => (GuiState::WaitingForResponse(self), false),
@@ -110,6 +116,48 @@ impl WaitingForResponse {
                 // We have crashed
                 unimplemented!()
             }
+        }
+    }
+}
+
+struct ShowError {
+    error: config::Error
+}
+
+impl ShowError {
+    fn new(error: config::Error) -> Self {
+        ShowError { error: error }
+    }
+
+    fn render<'a>(self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>) -> (GuiState, bool) {
+        enum UiResult {
+            Quit,
+            FindDevice,
+            Waiting,
+        };
+        let mut result = UiResult::Waiting;
+        show_window(ui, im_str!("Device Error"), |framesize| {
+            let text = format!("{}", self.error);
+            let imtext = ImString::new(text);
+            let text_size = ui.calc_text_size(&imtext, false, 0f32);
+            let text_pos = ((framesize.0 as f32 - text_size.x) / 2f32, (framesize.1 as f32 - text_size.y) / 2f32);
+            ui.set_cursor_pos(text_pos);
+            ui.text(imtext);
+            let button_pos = (text_pos.0 / 2f32, text_pos.1 + (framesize.1 as f32 - text_pos.1) / 2f32);
+            ui.set_cursor_pos(button_pos);
+            if ui.small_button(im_str!("Quit")) {
+                result = UiResult::Quit;
+            }
+            let button_pos = (text_pos.0 + text_pos.0 / 2f32, button_pos.1);
+            ui.set_cursor_pos(button_pos);
+            if ui.small_button(im_str!("Continue")) {
+                result = UiResult::FindDevice;
+            }
+        });
+        match result {
+            UiResult::Waiting => (GuiState::ShowError(self), false),
+            UiResult::Quit => (GuiState::ShowError(self), true),
+            UiResult::FindDevice => (GuiState::FindingDevice(FindingDevice::new()), false),
         }
     }
 }
@@ -127,6 +175,7 @@ enum GuiState {
     FindingDevice(FindingDevice),
     Configuring(Configuring),
     WaitingForResponse(WaitingForResponse),
+    ShowError(ShowError),
 }
 
 impl GuiState {
@@ -139,7 +188,7 @@ impl GuiState {
             GuiState::FindingDevice(s) => s.render(ui, configure_out),
             GuiState::Configuring(s) => s.render(ui, configure_out),
             GuiState::WaitingForResponse(s) => s.render(ui, configure_out),
-            _ => (self, false),
+            GuiState::ShowError(s) => s.render(ui, configure_out),
         }
     }
 }
@@ -152,6 +201,7 @@ pub fn gui_main(mut configure_out: tokio_mpsc::Sender<ConfigRequest>) {
     use glium::glutin;
     use glium::{Display, Surface};
     use imgui_glium_renderer::Renderer;
+    use imgui_winit_support;
 
     let mut events_loop = glutin::EventsLoop::new();
     let context = glutin::ContextBuilder::new().with_vsync(true);
@@ -186,6 +236,8 @@ pub fn gui_main(mut configure_out: tokio_mpsc::Sender<ConfigRequest>) {
 
     let mut renderer = Renderer::init(&mut imgui, &display).expect("Failed to initialize renderer");
 
+    imgui_winit_support::configure_keys(&mut imgui);
+
     let mut last_frame = Instant::now();
     let mut quit = false;
 
@@ -195,6 +247,13 @@ pub fn gui_main(mut configure_out: tokio_mpsc::Sender<ConfigRequest>) {
         events_loop.poll_events(|event| {
             use glium::glutin::WindowEvent::*;
             use glium::glutin::Event;
+
+            imgui_winit_support::handle_event(
+                &mut imgui,
+                &event,
+                window.get_hidpi_factor(),
+                hidpi_factor,
+            );
 
             if let Event::WindowEvent { event, .. } = event {
                 match event {
