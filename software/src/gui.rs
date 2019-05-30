@@ -45,16 +45,27 @@ fn textbox<'a>(ui: &Ui<'a>, title: &'a ImStr, text: &'a ImStr) {
 ///
 /// This will repeatedly enumerate midi fader devices until one is found
 struct FindingDevice {
-    _0: (),
+    timer: f32,
 }
 
 impl FindingDevice {
     fn new() -> Self {
-        FindingDevice { _0: () }
+        FindingDevice { timer: 0.0 }
     }
 
-    fn render<'a>(self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>) -> (GuiState, bool) {
-        textbox(ui, im_str!("Finding Device"), im_str!("Finding Device..."));
+    fn render<'a>(mut self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>, delta_s: f32) -> (GuiState, bool) {
+        self.timer += delta_s;
+        let text = if self.timer < 0.5 {
+            im_str!("Finding device.  ")
+        } else if self.timer < 1.0 {
+            im_str!("Finding device . ")
+        } else {
+            if self.timer > 1.5 {
+                self.timer = 0.0;
+            }
+            im_str!("Finding device  .")
+        };
+        textbox(ui, im_str!("Finding Device"), text);
         match Device::<MidiFader>::enumerate().unwrap().take(1).next() {
             Some(dev) => {
                 let (tx, rx) = std_mpsc::channel();
@@ -87,7 +98,7 @@ impl Configuring {
         Configuring { dev: device }
     }
 
-    fn render<'a>(self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>) -> (GuiState, bool) {
+    fn render<'a>(mut self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>, delta_s: f32) -> (GuiState, bool) {
         (self.into(), false)
     }
 }
@@ -107,15 +118,27 @@ impl From<Configuring> for GuiState {
 /// queue before moving back to the configuring GUI state.
 struct WaitingForResponse {
     receiver: std_mpsc::Receiver<ConfigResponse>,
+    timer: f32,
 }
 
 impl WaitingForResponse {
     fn new(receiver: std_mpsc::Receiver<ConfigResponse>) -> Self {
-        WaitingForResponse { receiver: receiver }
+        WaitingForResponse { receiver: receiver, timer: 0.0 }
     }
 
-    fn render<'a>(self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>) -> (GuiState, bool) {
-        textbox(ui, im_str!("Waiting"), im_str!("Waiting for device..."));
+    fn render<'a>(mut self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>, delta_s: f32) -> (GuiState, bool) {
+        self.timer += delta_s;
+        let text = if self.timer < 0.5 {
+            im_str!("Waiting for device.  ")
+        } else if self.timer < 1.0 {
+            im_str!("Waiting for device . ")
+        } else {
+            if self.timer > 1.5 {
+                self.timer = 0.0;
+            }
+            im_str!("Waiting for device  .")
+        };
+        textbox(ui, im_str!("Waiting"), text);
         match self.receiver.try_recv() {
             Ok(r) => {
                 match r {
@@ -139,7 +162,7 @@ impl From<WaitingForResponse> for GuiState {
 }
 
 struct ShowError {
-    error: config::Error
+    error: config::Error,
 }
 
 impl ShowError {
@@ -147,7 +170,7 @@ impl ShowError {
         ShowError { error: error }
     }
 
-    fn render<'a>(self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>) -> (GuiState, bool) {
+    fn render<'a>(mut self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>, delta_s: f32) -> (GuiState, bool) {
         enum UiResult {
             Quit,
             FindDevice,
@@ -207,12 +230,12 @@ impl GuiState {
         FindingDevice::new().into()
     }
 
-    fn render<'a>(self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>) -> (GuiState, bool) {
+    fn render<'a>(self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>, delta_s: f32) -> (GuiState, bool) {
         match self {
-            GuiState::FindingDevice(s) => s.render(ui, configure_out),
-            GuiState::Configuring(s) => s.render(ui, configure_out),
-            GuiState::WaitingForResponse(s) => s.render(ui, configure_out),
-            GuiState::ShowError(s) => s.render(ui, configure_out),
+            GuiState::FindingDevice(mut s) => s.render(ui, configure_out, delta_s),
+            GuiState::Configuring(mut s) => s.render(ui, configure_out, delta_s),
+            GuiState::WaitingForResponse(mut s) => s.render(ui, configure_out, delta_s),
+            GuiState::ShowError(mut s) => s.render(ui, configure_out, delta_s),
         }
     }
 }
@@ -304,7 +327,7 @@ pub fn gui_main(mut configure_out: tokio_mpsc::Sender<ConfigRequest>) {
         last_frame = now;
 
         let ui = imgui.frame(frame_size, delta_s);
-        let (next_state, inner_quit) = state.render(&ui, &mut configure_out);
+        let (next_state, inner_quit) = state.render(&ui, &mut configure_out, delta_s);
         state = next_state;
         quit |= inner_quit;
 
