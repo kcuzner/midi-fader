@@ -60,10 +60,16 @@ impl FindingDevice {
                 let (tx, rx) = std_mpsc::channel();
                 configure_out
                     .try_send(config::Request::ReadConfiguration(dev.unwrap(), tx));
-                (GuiState::WaitingForResponse(WaitingForResponse::new(rx)), false)
+                (WaitingForResponse::new(rx).into(), false)
             },
-            None => (GuiState::FindingDevice(self), false),
+            None => (self.into(), false),
         }
+    }
+}
+
+impl From<FindingDevice> for GuiState {
+    fn from(s: FindingDevice) -> GuiState {
+        GuiState::FindingDevice(s)
     }
 }
 
@@ -82,7 +88,13 @@ impl Configuring {
     }
 
     fn render<'a>(self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>) -> (GuiState, bool) {
-        (GuiState::Configuring(self), false)
+        (self.into(), false)
+    }
+}
+
+impl From<Configuring> for GuiState {
+    fn from(s: Configuring) -> GuiState {
+        GuiState::Configuring(s)
     }
 }
 
@@ -107,16 +119,22 @@ impl WaitingForResponse {
         match self.receiver.try_recv() {
             Ok(r) => {
                 match r {
-                    config::Response::Configured(d) => (GuiState::Configuring(Configuring::new(d)), false),
-                    config::Response::Error(e) => (GuiState::ShowError(ShowError::new(e)), false),
+                    config::Response::Configured(d) => (Configuring::new(d).into(), false),
+                    config::Response::Error(e) => (ShowError::new(e).into(), false),
                 }
             },
-            Err(std_mpsc::TryRecvError::Empty) => (GuiState::WaitingForResponse(self), false),
+            Err(std_mpsc::TryRecvError::Empty) => (self.into(), false),
             Err(std_mpsc::TryRecvError::Disconnected) => {
                 // We have crashed
                 unimplemented!()
             }
         }
+    }
+}
+
+impl From<WaitingForResponse> for GuiState {
+    fn from(s: WaitingForResponse) -> GuiState {
+        GuiState::WaitingForResponse(s)
     }
 }
 
@@ -155,10 +173,16 @@ impl ShowError {
             }
         });
         match result {
-            UiResult::Waiting => (GuiState::ShowError(self), false),
-            UiResult::Quit => (GuiState::ShowError(self), true),
-            UiResult::FindDevice => (GuiState::FindingDevice(FindingDevice::new()), false),
+            UiResult::Waiting => (self.into(), false),
+            UiResult::Quit => (self.into(), true),
+            UiResult::FindDevice => (FindingDevice::new().into(), false),
         }
+    }
+}
+
+impl From<ShowError> for GuiState {
+    fn from(s: ShowError) -> GuiState {
+        GuiState::ShowError(s)
     }
 }
 
@@ -180,7 +204,7 @@ enum GuiState {
 
 impl GuiState {
     fn new() -> Self {
-        GuiState::FindingDevice(FindingDevice::new())
+        FindingDevice::new().into()
     }
 
     fn render<'a>(self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>) -> (GuiState, bool) {
