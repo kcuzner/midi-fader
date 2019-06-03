@@ -5,6 +5,7 @@
 //! being configured and the passes it over to the tokio layer when the device needs to be read or
 //! written, since those operations use nonblocking I/O.
 
+use std::ops;
 use tokio::sync::mpsc as tokio_mpsc;
 use std::sync::mpsc as std_mpsc;
 use std::time::Instant;
@@ -84,22 +85,181 @@ impl From<FindingDevice> for GuiState {
     }
 }
 
+/// Renders a button onto a UI and handles user changes
+fn render_button<'a>(ui: &Ui<'a>, button: &mut config::Button) {
+    ui.text(im_str!("Button"));
+    // Channel
+    let mut channel = button.channel().value().into();
+    ui.slider_int(im_str!("MIDI Channel"), &mut channel, config::MidiChannel::MIN as i32,
+        config::MidiChannel::MAX as i32).build();
+    button.channel_mut().update(channel.into());
+    // Button mode
+    let mut mode = button.mode().value().into();
+    ui.text(im_str!("Button Mode"));
+    ui.radio_button(im_str!("Control Code"), &mut mode, config::ButtonMode::Control.into());
+    ui.same_line(0f32);
+    ui.radio_button(im_str!("Note"), &mut mode, config::ButtonMode::Note.into());
+    button.mode_mut().update(mode.into());
+    match button.mode().value() {
+        config::ButtonMode::Control => {
+            // Control Code
+            let mut control = button.control().value().into();
+            ui.slider_int(im_str!("CC Number"), &mut control, config::MidiValue::MIN as i32,
+                config::MidiValue::MAX as i32).build();
+            button.control_mut().update(control.into());
+            // On CC value
+            let mut on = button.on().value().into();
+            ui.slider_int(im_str!("Active CC Value"), &mut on, config::MidiValue::MIN as i32,
+                config::MidiValue::MAX as i32).build();
+            button.on_mut().update(on.into());
+            // Off CC value
+            let mut off = button.off().value().into();
+            ui.slider_int(im_str!("Inactive CC Value"), &mut off, config::MidiValue::MIN as i32,
+                config::MidiValue::MAX as i32).build();
+            button.off_mut().update(off.into());
+        },
+        config::ButtonMode::Note => {
+            // Note
+            let mut note = button.note().value().into();
+            ui.slider_int(im_str!("MIDI Note"), &mut note, config::MidiValue::MIN as i32,
+                config::MidiValue::MAX as i32).build();
+            button.note_mut().update(note.into());
+            // Note velocity
+            let mut note_vel = button.note_vel().value().into();
+            ui.slider_int(im_str!("Note Velocity"), &mut note_vel, config::MidiValue::MIN as i32,
+                config::MidiValue::MAX as i32).build();
+            button.note_vel_mut().update(note_vel.into());
+        },
+        config::ButtonMode::Invalid { n } => {
+            ui.text(im_str!("-- Invalid Button Mode Selected -- "));
+        },
+    }
+    // Button style
+    let mut style = button.style().value().into();
+    ui.text(im_str!("Button Style"));
+    ui.radio_button(im_str!("Momentary"), &mut style, config::ButtonStyle::Momentary.into());
+    ui.same_line(0f32);
+    ui.radio_button(im_str!("Toggle"), &mut style, config::ButtonStyle::Toggle.into());
+    button.style_mut().update(style.into());
+}
+
+fn render_fader<'a>(ui: &Ui<'a>, fader: &mut config::Fader) {
+    ui.text(im_str!("Fader"));
+    // Channel
+    let mut channel = fader.channel().value().into();
+    ui.slider_int(im_str!("MIDI Channel"), &mut channel, config::MidiChannel::MIN as i32,
+        config::MidiChannel::MAX as i32).build();
+    fader.channel_mut().update(channel.into());
+    // Fader mode
+    let mut mode = fader.mode().value().into();
+    ui.text(im_str!("Fader Mode"));
+    ui.radio_button(im_str!("Control Code"), &mut mode, config::FaderMode::Control.into());
+    ui.same_line(0f32);
+    ui.radio_button(im_str!("Pitch"), &mut mode, config::FaderMode::Pitch.into());
+    fader.mode_mut().update(mode.into());
+    match fader.mode().value() {
+        config::FaderMode::Control => {
+            // Control code
+            let mut control = fader.control().value().into();
+            ui.slider_int(im_str!("CC Number"), &mut control, config::MidiValue::MIN as i32,
+                config::MidiValue::MAX as i32).build();
+            fader.control_mut().update(control.into());
+            // Control minimum
+            let mut control_min = fader.control_min().value().into();
+            ui.slider_int(im_str!("Min CC Value"), &mut control_min, config::MidiValue::MIN as i32,
+                config::MidiValue::MAX as i32).build();
+            fader.control_min_mut().update(control_min.into());
+            // Control maximum
+            let mut control_max = fader.control_max().value().into();
+            ui.slider_int(im_str!("Max CC Value"), &mut control_max, config::MidiValue::MAX as i32,
+                config::MidiValue::MAX as i32).build();
+            fader.control_max_mut().update(control_max.into());
+        },
+        config::FaderMode::Pitch => {
+            // Pitch minimum
+            let mut pitch_min = fader.pitch_min().value().into();
+            ui.slider_int(im_str!("Min Pitch Value"), &mut pitch_min, config::MidiPitch::MIN as i32,
+                config::MidiPitch::MAX as i32).build();
+            fader.pitch_min_mut().update(pitch_min.into());
+            // Pitch maximum
+            let mut pitch_max = fader.pitch_max().value().into();
+            ui.slider_int(im_str!("Max Pitch Value"), &mut pitch_max, config::MidiPitch::MIN as i32,
+                config::MidiPitch::MAX as i32).build();
+            fader.pitch_max_mut().update(pitch_max.into());
+        },
+        config::FaderMode::Invalid { n } => {
+            ui.text(im_str!("-- Invalid Fader Mode Selected --"))
+        },
+    }
+}
+
+/// Function which tells the borrow checker how long to borrow the elements
+/// of a slice for
+fn borrow_all<'a>(source: &'a[ImString]) -> Vec<&'a ImStr> {
+    let mut vec = Vec::with_capacity(source.len());
+    for t in source {
+        vec.push(t.as_ref())
+    }
+    vec
+}
+
 /// Primary GUI state for when the device is being configured
 ///
 /// This will display configuration controls whose state is cached until the user clicks a save
 /// button. At that point, this state will be exited and the WaitingForResponse state will be
 /// entered.
 struct Configuring {
-    dev: config::DeviceConfig<Device<MidiFader>>
+    dev: config::DeviceConfig<Device<MidiFader>>,
+    group_index: i32,
 }
 
 impl Configuring {
     fn new(device: config::DeviceConfig<Device<MidiFader>>) -> Self {
-        Configuring { dev: device }
+        Configuring { dev: device, group_index: 0 }
     }
 
     fn render<'a>(mut self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>, delta_s: f32) -> (GuiState, bool) {
-        (self.into(), false)
+        enum UiResult {
+            Save,
+            Discard,
+            Waiting,
+        }
+        let mut result = UiResult::Waiting;
+        show_window(ui, im_str!("Configuring"), |framesize| {
+            let menu_items = ops::Range { start: 0, end: self.dev.groups_len() }
+                .into_iter().map(|x| ImString::new(format!("Channel {}", x))).collect::<Vec<ImString>>();
+            let menu_strs = borrow_all(&menu_items);
+            if self.group_index >= menu_strs.len() as i32 {
+                self.group_index = menu_strs.len() as i32 - 1;
+            }
+            if self.group_index < 0 {
+                self.group_index = 0
+            }
+            ui.combo(im_str!("Configure Channel"), &mut self.group_index, &menu_strs, self.dev.groups_len() as i32);
+            ui.separator();
+            let group = self.dev.group_mut(self.group_index as usize).expect("Invalid group selected");
+            ui.columns(2, im_str!("columns"), true);
+            render_button(ui, group.button_mut());
+            ui.next_column();
+            render_fader(ui, group.fader_mut());
+            ui.next_column();
+            ui.separator();
+            if ui.small_button(im_str!("Save changes to device")) {
+                result = UiResult::Save;
+            }
+            if ui.small_button(im_str!("Discard changes")) {
+                result = UiResult::Discard;
+            }
+        });
+        match result {
+            UiResult::Waiting | UiResult::Save => (self.into(), false),
+            UiResult::Discard => {
+                let (tx, rx) = std_mpsc::channel();
+                configure_out
+                    .try_send(config::Request::ReadConfiguration(self.dev.discard(), tx));
+                (WaitingForResponse::new(rx).into(), false)
+            }
+        }
     }
 }
 
@@ -170,7 +330,7 @@ impl ShowError {
         ShowError { error: error }
     }
 
-    fn render<'a>(mut self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>, delta_s: f32) -> (GuiState, bool) {
+    fn render<'a>(self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>, delta_s: f32) -> (GuiState, bool) {
         enum UiResult {
             Quit,
             FindDevice,
@@ -232,10 +392,10 @@ impl GuiState {
 
     fn render<'a>(self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>, delta_s: f32) -> (GuiState, bool) {
         match self {
-            GuiState::FindingDevice(mut s) => s.render(ui, configure_out, delta_s),
-            GuiState::Configuring(mut s) => s.render(ui, configure_out, delta_s),
-            GuiState::WaitingForResponse(mut s) => s.render(ui, configure_out, delta_s),
-            GuiState::ShowError(mut s) => s.render(ui, configure_out, delta_s),
+            GuiState::FindingDevice(s) => s.render(ui, configure_out, delta_s),
+            GuiState::Configuring(s) => s.render(ui, configure_out, delta_s),
+            GuiState::WaitingForResponse(s) => s.render(ui, configure_out, delta_s),
+            GuiState::ShowError(s) => s.render(ui, configure_out, delta_s),
         }
     }
 }

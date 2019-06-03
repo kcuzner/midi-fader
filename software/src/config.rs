@@ -1,5 +1,6 @@
 //! Device configuration abstraction
 
+use std::slice;
 use std::marker::PhantomData;
 use tokio::prelude::*;
 use tokio::sync::mpsc as tokio_mpsc;
@@ -80,6 +81,14 @@ macro_rules! parameter_type {
                 self.value
             }
 
+            pub fn update(&mut self, value: $arg) {
+                if self.value != value {
+                    self.update = Some(value);
+                } else{
+                    self.update = None;
+                }
+            }
+
             /// Gets the underlying update value
             ///
             /// If there is no update, return sNone. Otherwise it returns Some with the update
@@ -118,7 +127,7 @@ trait IntoParameterValue : Into<ParameterValue> {
 
 macro_rules! ranged_type {
     ($name:ident, $of:ident, $min:expr, $max:expr, $size:expr) => {
-        #[derive(Debug, Clone, Copy)]
+        #[derive(Debug, Clone, Copy, PartialEq)]
         pub enum $name {
             Valid {
                 n: $of,
@@ -129,6 +138,8 @@ macro_rules! ranged_type {
         }
 
         impl $name {
+            pub const MIN: $of = $min;
+            pub const MAX: $of = $max;
             /// Creates a new ranged type from a raw value
             pub fn new(raw: $of) -> Self {
                 match raw {
@@ -156,12 +167,21 @@ macro_rules! ranged_type {
                 $name::new(i as $of)
             }
         }
+
+        impl From<$name> for i32 {
+            fn from(v: $name) -> i32 {
+                match v {
+                    $name::Valid { n } => n as i32,
+                    $name::Invalid { n } => n as i32,
+                }
+            }
+        }
     };
 }
 
 macro_rules! flexible_enum {
     ($name:ident => [ $( ($opt:ident, $val:expr) ),+ ] ) => {
-        #[derive(Debug, Clone, Copy)]
+        #[derive(Debug, Clone, Copy, PartialEq)]
         pub enum $name {
             $(
                 $opt,
@@ -192,6 +212,17 @@ macro_rules! flexible_enum {
                         $val => $name::$opt,
                     )+
                         n => $name::Invalid { n: n as u32 },
+                }
+            }
+        }
+
+        impl From<$name> for i32 {
+            fn from(v: $name) -> i32 {
+                match v {
+                    $(
+                        $name::$opt => $val,
+                    )+
+                        $name::Invalid { n } => n as i32,
                 }
             }
         }
@@ -539,6 +570,22 @@ impl GroupConfig {
                 Ok((res.0, group))
             })
     }
+
+    pub fn button(&self) -> &Button {
+        &self.button
+    }
+
+    pub fn fader(&self) -> &Fader {
+        &self.fader
+    }
+
+    pub fn button_mut(&mut self) -> &mut Button {
+        &mut self.button
+    }
+
+    pub fn fader_mut(&mut self) -> &mut Fader {
+        &mut self.fader
+    }
 }
 
 pub struct DeviceConfig<T: AsyncHidDevice<MidiFader>> {
@@ -584,6 +631,24 @@ impl<T: AsyncHidDevice<MidiFader>> DeviceConfig<T> {
             })
     }
 
+    pub fn groups_len(&self) -> usize {
+        self.groups.len()
+    }
+
+    pub fn group_mut<'a>(&'a mut self, index: usize) -> Option<&'a mut GroupConfig> {
+        self.groups.get_mut(index)
+    }
+
+    pub fn groups_mut<'a>(&'a mut self) -> slice::IterMut<'a, GroupConfig> {
+        self.groups.iter_mut()
+    }
+
+    /// Discards this configuration and gives back the device
+    pub fn discard(self) -> T {
+        self.device
+    }
+
+    /// Commits this configuration's changes to the device
     pub fn commit(self) -> impl Future<Item=Self, Error=Error> {
         let mut groups = arrayvec::ArrayVec::from(self.groups);
         let group7 = groups.pop().unwrap();
