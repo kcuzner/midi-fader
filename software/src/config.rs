@@ -468,6 +468,7 @@ parameter_collection!(Fader {
     pitch_max: FdrPitchMax,
 });
 
+#[derive(Debug)]
 pub struct GroupConfig {
     index: u32,
     button: Button,
@@ -527,6 +528,7 @@ impl GroupConfig {
     }
 }
 
+#[derive(Debug)]
 pub struct DeviceConfig<T: AsyncHidDevice<MidiFader>> {
     device: T,
     groups: [GroupConfig; 8],
@@ -635,12 +637,14 @@ impl<T: AsyncHidDevice<MidiFader>> DeviceConfig<T> {
 }
 
 /// Configuration request
+#[derive(Debug)]
 pub enum Request<T: AsyncHidDevice<MidiFader>> {
     ReadConfiguration(T, std_mpsc::Sender<Response<T>>),
     WriteConfiguration(DeviceConfig<T>, std_mpsc::Sender<Response<T>>),
 }
 
 /// Configuration response
+#[derive(Debug)]
 pub enum Response<T: AsyncHidDevice<MidiFader>> {
     Configured(DeviceConfig<T>),
     Error(Error),

@@ -219,6 +219,7 @@ impl Configuring {
     }
 
     fn render<'a>(mut self, ui: &Ui<'a>, configure_out: &mut tokio_mpsc::Sender<ConfigRequest>, delta_s: f32) -> (GuiState, bool) {
+        #[derive(Debug)]
         enum UiResult {
             Save,
             Discard,
@@ -252,7 +253,13 @@ impl Configuring {
             }
         });
         match result {
-            UiResult::Waiting | UiResult::Save => (self.into(), false),
+            UiResult::Waiting => (self.into(), false),
+            UiResult::Save => {
+                let (tx, rx) = std_mpsc::channel();
+                configure_out
+                    .try_send(config::Request::WriteConfiguration(self.dev, tx));
+                (WaitingForResponse::new(rx).into(), false)
+            }
             UiResult::Discard => {
                 let (tx, rx) = std_mpsc::channel();
                 configure_out
