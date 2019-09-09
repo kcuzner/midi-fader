@@ -19,6 +19,13 @@ class Command(object):
     def pack(self):
         return struct.pack('<I60s', self.command, self.data_bytes)
 
+class StatusCommand(Command):
+    """
+    Command to get the device status
+    """
+    def __init__(self):
+        super().__init__(0x00, b'')
+
 class GetCommand(Command):
     """
     Command to get a parameter
@@ -81,6 +88,10 @@ class Device(hid.device):
 
     def __exit__(self, *args):
         self.close()
+
+    def status(self):
+        cmd = StatusCommand()
+        return Response(self.write_command(cmd))
 
     def get_parameter(self, parameter):
         cmd = GetCommand(parameter)

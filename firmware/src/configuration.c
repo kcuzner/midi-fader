@@ -25,19 +25,29 @@
 #include "configuration.h"
 
 #include <string.h>
+#include <assert.h>
 
 #include "stm32f0xx.h"
 #include "storage.h"
 #include "_gen_storage.h"
 #include "usb_hid.h"
+#include "buttons.h"
+#include "firmware.h"
 
 typedef struct {
     uint32_t command;
     union {
         uint32_t parameters[15];
         uint8_t buffer[60];
+        struct {
+            uint32_t magic;
+            uint32_t channels;
+            char version[52];
+        };
     };
 } __attribute__((packed)) HIDBuffer;
+
+static_assert(sizeof(HIDBuffer) == 64, "HIDBuffer must be 64 bytes");
 
 /**
  * HID report buffer for the incoming configuration command
@@ -230,6 +240,14 @@ static void configuration_begin_request(void)
     usb_hid_receive(&transfer);
 }
 
+static void configuration_get_status(const HIDBuffer *request,
+        HIDBuffer *response)
+{
+    response->magic = 0xDEADBEEF;
+    response->channels = buttons_get_count();
+    strcpy(response->version, firmware_version);
+}
+
 /**
  * Gets the response to the get parameter command
  */
@@ -281,6 +299,9 @@ static void configuration_end_request(HIDBuffer *request)
 
     switch (request->command)
     {
+        case CONFIGURATION_HID_STATUS:
+            configuration_get_status(request, &configuration_response);
+            break;
         case CONFIGURATION_HID_GET_PARAM:
             configuration_get_param_response(request, &configuration_response);
             break;
