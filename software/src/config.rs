@@ -242,7 +242,63 @@ macro_rules! parameter_collection {
         }
 
         paste::item! {
+            struct [<$name Builder>] {
+                index : u32,
+                $(
+                    $param: Option<ParameterValue>,
+                )+
+            }
+
+            impl [<$name Builder>] {
+                // Specify the new function in terms of a future in order to simplify the
+                // macro-generation of the multi-step future that reads back device information
+                fn new<T: AsyncHidDevice<MidiFader>>(device: T, index: u32) -> impl Future<Item=(T, Self), Error=Error> {
+                    let builder = [<$name Builder>] {
+                        index: index,
+                        $(
+                            $param: None,
+                        )+
+                    };
+                    future::result(Ok((device, builder)))
+                }
+
+                $(
+                    fn [<set_ $param>](mut self, value: ParameterValue) -> Self {
+                        self.$param = Some(value);
+                        self
+                    }
+                )+
+            }
+
+            impl From<[<$name Builder>]> for $name {
+                fn from(builder: [<$name Builder>]) -> $name {
+                    $name {
+                        index: builder.index,
+                        $(
+                            $param: $t::new(builder.index, builder.$param.unwrap().value().into()),
+                        )+
+                    }
+                }
+            }
+
             impl $name {
+                fn read_from<T: AsyncHidDevice<MidiFader>>(device: T, index: u32) -> impl Future<Item=(T, Self), Error=Error> {
+                    [<$name Builder>]::new(device, index)
+                    $(
+                        .and_then(|res| {
+                            res.0.get_parameter($t::index_parameter(res.1.index))
+                                .map_err(|e| e.into())
+                                .join(Ok(res.1))
+                        })
+                        .and_then(|(res, builder)| {
+                            Ok((res.0, builder.[<set_ $param>](res.1)))
+                        })
+                    )+
+                        .and_then(|(device, builder)| {
+                            Ok((device, builder.into()))
+                        })
+                }
+
                 $(
                     pub fn $param(&self) -> &$t {
                         &self.$param
@@ -401,69 +457,6 @@ parameter_collection!(Button {
     style: BtnStyle,
 });
 
-impl Button {
-    /// Builds a button configuration using the passed device and index
-    ///
-    /// This returns a future for the device and the associated button configuration
-    fn get_button_configuration<T: AsyncHidDevice<MidiFader>>(device: T, index: u32) -> impl Future<Item=(T, Self), Error=Error> {
-        // This might be the textbook definition of un-ergonomic...
-        // Just watch as the tuple size gets longer and longer.
-        // Maybe this could be a macro?
-        device.get_parameter(BtnMidiChannel::index_parameter(index))
-            .and_then(move |res| {
-                let ch = res.1;
-                res.0.get_parameter(BtnOn::index_parameter(index))
-                    .join(Ok(ch))
-            })
-            .and_then(move |(res, ch)| {
-                let on = res.1;
-                res.0.get_parameter(BtnOff::index_parameter(index))
-                    .join(Ok((ch, on)))
-            })
-            .and_then(move |(res, (ch, on))| {
-                let off = res.1;
-                res.0.get_parameter(BtnMode::index_parameter(index))
-                    .join(Ok((ch, on, off)))
-            })
-            .and_then(move |(res, (ch, on, off))| {
-                let mode = res.1;
-                res.0.get_parameter(BtnControl::index_parameter(index))
-                    .join(Ok((ch, on, off, mode)))
-            })
-            .and_then(move |(res, (ch, on, off, mode))| {
-                let control = res.1;
-                res.0.get_parameter(BtnNote::index_parameter(index))
-                    .join(Ok((ch, on, off, mode, control)))
-            })
-            .and_then(move |(res, (ch, on, off, mode, control))| {
-                let note = res.1;
-                res.0.get_parameter(BtnNoteVel::index_parameter(index))
-                    .join(Ok((ch, on, off, mode, control, note)))
-            })
-            .and_then(move |(res, (ch, on, off, mode, control, note))| {
-                let note_vel = res.1;
-                res.0.get_parameter(BtnStyle::index_parameter(index))
-                    .join(Ok((ch, on, off, mode, control, note, note_vel)))
-            })
-            .and_then(move |(res, (ch, on, off, mode, control, note, note_vel))| {
-                let style = res.1;
-                let button = Button {
-                    index: index,
-                    channel: BtnMidiChannel::new(index, ch.value().into()),
-                    on: BtnOn::new(index, on.value().into()),
-                    off: BtnOff::new(index, off.value().into()),
-                    mode: BtnMode::new(index, mode.value().into()),
-                    control: BtnControl::new(index, control.value().into()),
-                    note: BtnNote::new(index, note.value().into()),
-                    note_vel: BtnNoteVel::new(index, note_vel.value().into()),
-                    style: BtnStyle::new(index, style.value().into()),
-                };
-                Ok((res.0, button))
-            })
-            .map_err(|e| e.into())
-    }
-}
-
 /// Settings for a fader on the device
 parameter_collection!(Fader {
     channel: FdrMidiChannel,
@@ -475,60 +468,6 @@ parameter_collection!(Fader {
     pitch_max: FdrPitchMax,
 });
 
-impl Fader {
-    /// Builds a fader configuration using the passed device and index
-    ///
-    /// This returns a future for the device and the associated fader configuration
-    fn get_fader_configuration<T: AsyncHidDevice<MidiFader>>(device: T, index: u32) -> impl Future<Item=(T, Self), Error=Error> {
-        device.get_parameter(FdrMidiChannel::index_parameter(index))
-            .and_then(move |res| {
-                let ch = res.1;
-                res.0.get_parameter(FdrMode::index_parameter(index))
-                    .join(Ok(ch))
-            })
-            .and_then(move |(res, ch)| {
-                let mode = res.1;
-                res.0.get_parameter(FdrControl::index_parameter(index))
-                    .join(Ok((ch, mode)))
-            })
-            .and_then(move |(res, (ch, mode))| {
-                let control = res.1;
-                res.0.get_parameter(FdrControlMin::index_parameter(index))
-                    .join(Ok((ch, mode, control)))
-            })
-            .and_then(move |(res, (ch, mode, control))| {
-                let control_min = res.1;
-                res.0.get_parameter(FdrControlMax::index_parameter(index))
-                    .join(Ok((ch, mode, control, control_min)))
-            })
-            .and_then(move |(res, (ch, mode, control, control_min))| {
-                let control_max = res.1;
-                res.0.get_parameter(FdrPitchMin::index_parameter(index))
-                    .join(Ok((ch, mode, control, control_min, control_max)))
-            })
-            .and_then(move |(res, (ch, mode, control, control_min, control_max))| {
-                let pitch_min = res.1;
-                res.0.get_parameter(FdrPitchMax::index_parameter(index))
-                    .join(Ok((ch, mode, control, control_min, control_max, pitch_min)))
-            })
-            .and_then(move |(res, (ch, mode, control, control_min, control_max, pitch_min))| {
-                let pitch_max = res.1;
-                let fader = Fader {
-                    index: index,
-                    channel: FdrMidiChannel::new(index, ch.value().into()),
-                    mode: FdrMode::new(index, mode.value().into()),
-                    control: FdrControl::new(index, control.value().into()),
-                    control_min: FdrControlMin::new(index, control_min.value().into()),
-                    control_max: FdrControlMax::new(index, control_max.value().into()),
-                    pitch_min: FdrPitchMin::new(index, pitch_min.value().into()),
-                    pitch_max: FdrPitchMax::new(index, pitch_max.value().into()),
-                };
-                Ok((res.0, fader))
-            })
-            .map_err(|e| e.into())
-    }
-}
-
 pub struct GroupConfig {
     index: u32,
     button: Button,
@@ -537,9 +476,9 @@ pub struct GroupConfig {
 
 impl GroupConfig {
     fn get_group_configuration<T: AsyncHidDevice<MidiFader>>(device: T, index: u32) -> impl Future<Item=(T, Self), Error=Error> {
-        Fader::get_fader_configuration(device, index)
+        Fader::read_from(device, index)
             .and_then(move |res| {
-                Button::get_button_configuration(res.0, index)
+                Button::read_from(res.0, index)
                     .join(Ok(res.1))
             })
             .and_then(move |(res, fader)| {

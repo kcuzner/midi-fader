@@ -1,5 +1,7 @@
 //! Host software GUI for the midi-fader
 
+#![recursion_limit="128"]
+
 extern crate arrayvec;
 extern crate byteorder;
 extern crate errno;
